@@ -1,4 +1,4 @@
-package http
+package main
 
 import (
 	"bytes"
@@ -17,28 +17,11 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"regexp"
 	"strings"
 	"time"
+
+	"http/auth"
 )
-
-// KeyExchangeRequest определяет структуру JSON запроса
-type KeyExchangeRequest struct {
-	ID              string `json:"id"`
-	ClientPublicKey string `json:"public_key"`
-	IsRegistring    bool   `json:"is_registring"`
-}
-
-// KeyExchangeResponse определяет структуру JSON ответа от сервера
-type KeyExchangeResponse struct {
-	ServerPublicKey string `json:"public_key"`
-}
-
-// KeyExchangeResult представляет результат обмена ключами
-type KeyExchangeResult struct {
-	SharedSecret []byte
-	Error        error
-}
 
 type SearchUserResponse struct {
 	Users []string
@@ -62,16 +45,14 @@ type Message struct {
 	SendTime time.Time `json:"SendTime"`
 }
 
-var re *regexp.Regexp = regexp.MustCompile(`^[a-zA-Z0-9]+$`)
-
 const (
-	forServerReq string = "http://185.121.15.223:"
-	// forServerReq              string = "http://localhost:"
-	mainServicePort           = "23099"
-	mediumSizeDataServicePort = "23098"
-	audioDialogServicePort    = "23097"
-	designationOfInitDialog   = "i"
-	designationOfAnswerDialog = "a"
+	// forServerReq string = "http://185.121.15.223:"
+	forServerReq              string = "http://localhost:"
+	mainServicePort                  = "23099"
+	mediumSizeDataServicePort        = "23098"
+	audioDialogServicePort           = "23097"
+	designationOfInitDialog          = "i"
+	designationOfAnswerDialog        = "a"
 )
 
 type Avatar struct {
@@ -93,14 +74,6 @@ type RequestCheckMessages struct {
 	Messages []byte `json:"Messages"` // или string, если хочешь base64
 }
 
-func isValidStr(str string) bool {
-	if len(str) > 20 {
-		return false
-	}
-
-	return re.MatchString(str)
-}
-
 type SendFIleRequest struct {
 	Sender               string
 	Receiver             string
@@ -114,8 +87,8 @@ type SendFIleRequest struct {
 func main() {
 	// // dialogKey := "345ee540ab4c6d32e733a6dd8fe3a9b393f52cf95bc89821209a2989f1c94b32"
 	device := "g35c47d72f1c8c8d.SM-A155F.mt6789"
-	// resp := Reg("Mongol", "mongoliskii", "1234567890", device)
-	// fmt.Println("new reg", resp)
+	resp := Reg("Mongol", "mongoliskii", "1234567890", device)
+	fmt.Println("new reg", resp)
 	// resp = Reg("Pes", "pesik", "1234567890", device)
 	// fmt.Println(resp)
 	// testECDHAlogoritm()
@@ -123,11 +96,11 @@ func main() {
 	fmt.Println(authMongol)
 	// authPes := Auth("Pes", "1234567890", device)
 	// fmt.Println(authPes)
-	keyMongol := strings.Split(authMongol, "\n")[0]
+	// keyMongol := strings.Split(authMongol, "\n")[0]
 	// keyPes := strings.Split(authPes, "\n")[0]
 
-	fmt.Println("check messages: ", CheckMessages("Mongol", "1234567890", device, keyMongol))
-	fmt.Println("del: ", DelMessages("Mongol", "1234567890", device, keyMongol))
+	// fmt.Println("check messages: ", CheckMessages("Mongol", "1234567890", device, keyMongol))
+	// fmt.Println("del: ", DelMessages("Mongol", "1234567890", device, keyMongol))
 	// fmt.Println(SearchUser("Mongol", device, "Pes", keyMongol, 1))
 	// fmt.Println(SearchUser("Mongol", device, "Mongoliseker", keyMongol, 1))
 	// fmt.Println(SearchUser("Mongol", device, "Mongol", keyMongol, 1))
@@ -275,297 +248,14 @@ func testECDHAlgorithm() {
 	fmt.Println(endInit)
 }
 
-func exchangeKeys(deviceInfo string, isRegistring bool) *KeyExchangeResult {
-	timeout := 10 * time.Second
-	result := make(chan *KeyExchangeResult, 1)
-
-	go func() {
-		defer close(result)
-
-		// Генерация пары ключей для кривой P256
-		privateKey, err := ecdh.P256().GenerateKey(rand.Reader)
-		if err != nil {
-			result <- &KeyExchangeResult{Error: fmt.Errorf("ошибка генерации ключей: %v", err)}
-			return
-		}
-
-		// Получение открытого ключа в виде байт
-		publicKeyBytes := privateKey.PublicKey().Bytes()
-
-		// Подготовка запроса
-		requestBody := KeyExchangeRequest{
-			ID:              deviceInfo,
-			ClientPublicKey: base64.RawURLEncoding.EncodeToString(publicKeyBytes),
-			IsRegistring:    isRegistring,
-		}
-
-		requestJSON, err := json.Marshal(requestBody)
-		if err != nil {
-			result <- &KeyExchangeResult{Error: fmt.Errorf("ошибка маршалинга JSON: %v", err)}
-			return
-		}
-
-		// Создание контекста с таймаутом
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
-		defer cancel()
-
-		// Создание HTTP запроса с контекстом
-		req, err := http.NewRequestWithContext(ctx, "POST", forServerReq+mainServicePort+"/exchangekey", bytes.NewBuffer(requestJSON))
-		if err != nil {
-			result <- &KeyExchangeResult{Error: fmt.Errorf("ошибка создания запроса: %v", err)}
-			return
-		}
-		req.Header.Set("Content-Type", "application/json")
-
-		// Выполнение запроса
-		client := &http.Client{}
-		resp, err := client.Do(req)
-		if err != nil {
-			// Проверяем, был ли это таймаут
-			if ctx.Err() == context.DeadlineExceeded {
-				result <- &KeyExchangeResult{Error: fmt.Errorf("Сервер не отвечает")}
-			} else {
-				result <- &KeyExchangeResult{Error: fmt.Errorf("ошибка отправки запроса: %v", err)}
-			}
-			return
-		}
-		defer resp.Body.Close()
-
-		// Чтение ответа от сервера
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			result <- &KeyExchangeResult{Error: fmt.Errorf("ошибка чтения ответа: %v", err)}
-			return
-		}
-
-		switch resp.StatusCode {
-		case http.StatusOK:
-			var serverResponse KeyExchangeResponse
-			if err := json.Unmarshal(body, &serverResponse); err != nil {
-				result <- &KeyExchangeResult{Error: fmt.Errorf("ошибка парсинга ответа: %v", err)}
-				return
-			}
-
-			// Декодирование публичного ключа сервера из hex-строки
-			serverPubKeyBytes, err := base64.RawURLEncoding.DecodeString(serverResponse.ServerPublicKey)
-			if err != nil {
-				result <- &KeyExchangeResult{Error: fmt.Errorf("ошибка декодирования ключа сервера: %v", err)}
-				return
-			}
-
-			// Преобразование байт в ecdh.PublicKey
-			serverPublicKey, err := ecdh.P256().NewPublicKey(serverPubKeyBytes)
-			if err != nil {
-				result <- &KeyExchangeResult{Error: fmt.Errorf("ошибка создания публичного ключа сервера: %v", err)}
-				return
-			}
-
-			// ВЫЧИСЛЕНИЕ ОБЩЕГО СЕКРЕТА
-			sharedSecret, err := privateKey.ECDH(serverPublicKey)
-			if err != nil {
-				result <- &KeyExchangeResult{Error: fmt.Errorf("ошибка вычисления общего секрета: %v", err)}
-				return
-			}
-
-			result <- &KeyExchangeResult{SharedSecret: sharedSecret}
-		case http.StatusBadRequest:
-			result <- &KeyExchangeResult{Error: fmt.Errorf("Не удалось обработать запрос")}
-		case http.StatusInternalServerError:
-			result <- &KeyExchangeResult{Error: fmt.Errorf("Внутреняя ошибка сервера")}
-		default:
-			result <- &KeyExchangeResult{Error: fmt.Errorf("Ошибка сервера: %s\nТело ответа: %s", resp.Status, string(body))}
-		}
-	}()
-
-	// Ожидаем результат или таймаут
-	select {
-	case res := <-result:
-		return res
-	case <-time.After(timeout):
-		return &KeyExchangeResult{Error: fmt.Errorf("Сервер не отвечает")}
-	}
-}
-
-func regRequest(login, name, password, key, hashedDeviceInfo, deviceInfo string) string {
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-	}
-
-	keyForServer, err := crypto.StringEncrypt([]byte(crypto.GenKey(deviceInfo)), key)
-	if err != nil {
-		return "$ неизвестная ошибка"
-	}
-	loginEncypted, err := crypto.StringEncrypt([]byte(login), key)
-	if err != nil {
-		return "$ неизвестная ошибка"
-	}
-	nameEncrypted, err := crypto.StringEncrypt([]byte(name), key)
-	if err != nil {
-		return "$ неизвестная ошибка"
-	}
-	passwordEncrypted, err := crypto.StringEncrypt([]byte(password), key)
-	if err != nil {
-		return "$ неизвестная ошибка"
-	}
-
-	formData := url.Values{}
-	formData.Add("login", loginEncypted)
-	formData.Add("name", nameEncrypted)
-	formData.Add("password", passwordEncrypted)
-	formData.Add("device", hashedDeviceInfo)
-	formData.Add("forserver", keyForServer)
-
-	resp, err := client.PostForm(forServerReq+mainServicePort+"/reg", formData)
-	if err != nil {
-		if os.IsTimeout(err) {
-			return "Сервер не отвечает"
-		}
-		return "Сервер не отвечает по какой то херне"
-	}
-	defer resp.Body.Close()
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return "Не удалось прочитать ответ от сервера"
-	}
-
-	switch resp.StatusCode {
-	case http.StatusOK:
-		return ""
-	case http.StatusBadRequest:
-		if len(string(body)) > 20 {
-			decryptedResp, err := crypto.StringDecrypt(string(body), key)
-			if err != nil {
-				return "$ попробуйте зарегистрироваться заново"
-			}
-			return "$ " + decryptedResp
-		}
-		return "$ " + string(body)
-		// return "Проверьте правильность ввода данных"
-	case http.StatusInternalServerError:
-		decryptedResp, err := crypto.StringDecrypt(string(body), key)
-		if err != nil {
-			return "$ попробуйте зарегистрироваться заново"
-		}
-		return "$ " + decryptedResp
-	default:
-		decryptedResp, err := crypto.StringDecrypt(string(body), key)
-		if err != nil {
-			return "$ попробуйте зарегистрироваться заново"
-		}
-		return "$ " + decryptedResp
-	}
-}
-
-func authRequest(login, password, key, hashedDeviceInfo, deviceInfo string) string {
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-	}
-
-	keyForServer, err := crypto.StringEncrypt([]byte(crypto.GenKey(deviceInfo)), key)
-	if err != nil {
-		return "$ неизвестная ошибка"
-	}
-	loginEncypted, err := crypto.StringEncrypt([]byte(login), key)
-	if err != nil {
-		return "$ неизвестная ошибка"
-	}
-	passwordEncrypted, err := crypto.StringEncrypt([]byte(password), key)
-	if err != nil {
-		return "$ неизвестная ошибка"
-	}
-
-	formData := url.Values{}
-	formData.Add("login", loginEncypted)
-	formData.Add("password", passwordEncrypted)
-	formData.Add("device", hashedDeviceInfo)
-	formData.Add("forserver", keyForServer)
-
-	resp, err := client.PostForm(forServerReq+mainServicePort+"/auth", formData)
-	if err != nil {
-		if os.IsTimeout(err) {
-			return "Сервер не отвечает"
-		}
-		return "Не удается установить соединение с сервером: " + err.Error()
-	}
-	defer resp.Body.Close()
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return "Не удается обработать ответ сервера"
-	}
-
-	switch resp.StatusCode {
-	case http.StatusOK:
-		decryptedResp, err := crypto.StringDecrypt(string(body), key)
-		if err != nil {
-			return "$ попробуйте авторизоваться заново"
-		}
-		return decryptedResp
-	case http.StatusBadRequest:
-		if string(body) == "Did not receive all server data" || string(body) == "This request is not expected for you" {
-			return "$" + string(body)
-		}
-		decryptedResp, err := crypto.StringDecrypt(string(body), key)
-		if err != nil {
-			return "$ попробуйте авторизоваться заново"
-		}
-		return "$ " + decryptedResp
-	// 	return "Проверьте правильность ввода данных"
-	// case http.StatusForbidden:
-	// 	return "Не правильный логин или пароль"
-	case http.StatusInternalServerError:
-		decryptedResp, err := crypto.StringDecrypt(string(body), key)
-		if err != nil {
-			return "$ попробуйте авторизоваться заново"
-		}
-		return "$ " + decryptedResp
-	// 	return "Внутреняя ошибка сервера"
-	default:
-		return ""
-	}
-}
-
 //export Reg
 func Reg(login, name, password, deviceInfo string) string {
-	if !isValidStr(login) && !isValidStr(name) && !isValidStr(password) {
-		return "$ Используйте только символы: a - z, A - Z или 0 - 9"
-	}
-
-	hashedDeviceInfo := crypto.HashDeviceInfo(deviceInfo, login)
-
-	result := exchangeKeys(hashedDeviceInfo, true)
-
-	if result.Error != nil {
-		return "$ Не удалось совершить обмен ключами: " + result.Error.Error()
-	}
-
-	secretKey := fmt.Sprintf("%x", result.SharedSecret)
-	res := regRequest(login, name, password, secretKey, hashedDeviceInfo, deviceInfo)
-	if !strings.Contains(res, "$") {
-		return secretKey
-	} else {
-		return res
-	}
+	return auth.Reg(login, name, password, deviceInfo)
 }
 
 //export Auth
 func Auth(login, password, deviceInfo string) string {
-	hashedDeviceInfo := crypto.HashDeviceInfo(deviceInfo, login)
-	result := exchangeKeys(hashedDeviceInfo, false)
-
-	if result.Error != nil {
-		return result.Error.Error()
-	}
-
-	secretKey := fmt.Sprintf("%x", result.SharedSecret)
-	res := authRequest(login, password, secretKey, hashedDeviceInfo, deviceInfo)
-	if strings.Contains(res, "$") {
-		return res
-	} else {
-
-		return secretKey + "\n" + res
-	}
+	return auth.Auth(login, password, deviceInfo)
 }
 
 //export SearchUser
