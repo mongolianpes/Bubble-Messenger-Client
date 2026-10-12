@@ -11,6 +11,8 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"client/config"
 )
 
 // KeyExchangeRequest определяет структуру JSON запроса
@@ -66,7 +68,7 @@ func exchangeKeys(deviceInfo string, isRegistring bool) *KeyExchangeResult {
 		defer cancel()
 
 		// Создание HTTP запроса с контекстом
-		req, err := http.NewRequestWithContext(ctx, "POST", forServerReq+mainServicePort+"/exchangekey", bytes.NewBuffer(requestJSON))
+		req, err := http.NewRequestWithContext(ctx, "POST", config.ForServerReq+config.MainServicePort+"/exchangekey", bytes.NewBuffer(requestJSON))
 		if err != nil {
 			result <- &KeyExchangeResult{Error: fmt.Errorf("ошибка создания запроса: %v", err)}
 			return

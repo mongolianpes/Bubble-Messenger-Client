@@ -2,16 +2,10 @@ package auth
 
 import (
 	"fmt"
-	"http/crypto"
 	"regexp"
 	"strings"
-)
 
-const (
-	forServerReq              string = "http://localhost:"
-	mainServicePort                  = "23099"
-	mediumSizeDataServicePort        = "23098"
-	audioDialogServicePort           = "23097"
+	"client/crypto"
 )
 
 func Reg(login, name, password, deviceInfo string) string {

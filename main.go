@@ -10,7 +10,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"http/crypto"
 	"io"
 	"io/ioutil"
 	"log"
@@ -20,7 +19,8 @@ import (
 	"strings"
 	"time"
 
-	"http/auth"
+	"client/auth"
+	"client/crypto"
 )
 
 type SearchUserResponse struct {
@@ -47,12 +47,12 @@ type Message struct {
 
 const (
 	// forServerReq string = "http://185.121.15.223:"
-	forServerReq              string = "http://localhost:"
-	mainServicePort                  = "23099"
-	mediumSizeDataServicePort        = "23098"
-	audioDialogServicePort           = "23097"
-	designationOfInitDialog          = "i"
-	designationOfAnswerDialog        = "a"
+	forServerReq              = "http://localhost:"
+	mainServicePort           = "23099"
+	mediumSizeDataServicePort = "23098"
+	audioDialogServicePort    = "23097"
+	designationOfInitDialog   = "i"
+	designationOfAnswerDialog = "a"
 )
 
 type Avatar struct {

@@ -2,12 +2,14 @@ package auth
 
 import (
 	"fmt"
-	"http/crypto"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
 	"time"
+
+	"client/config"
+	"client/crypto"
 )
 
 func regRequest(login, name, password, key, hashedDeviceInfo, deviceInfo string) string {
@@ -39,7 +41,7 @@ func regRequest(login, name, password, key, hashedDeviceInfo, deviceInfo string)
 	formData.Add("device", hashedDeviceInfo)
 	formData.Add("forserver", keyForServer)
 
-	resp, err := client.PostForm(forServerReq+mainServicePort+"/reg", formData)
+	resp, err := client.PostForm(config.ForServerReq+config.MainServicePort+"/reg", formData)
 	if err != nil {
 		if os.IsTimeout(err) {
 			return "Сервер не отвечает"
@@ -105,7 +107,7 @@ func authRequest(login, password, key, hashedDeviceInfo, deviceInfo string) stri
 	formData.Add("device", hashedDeviceInfo)
 	formData.Add("forserver", keyForServer)
 
-	resp, err := client.PostForm(forServerReq+mainServicePort+"/auth", formData)
+	resp, err := client.PostForm(config.ForServerReq+config.MainServicePort+"/auth", formData)
 	if err != nil {
 		if os.IsTimeout(err) {
 			return "Сервер не отвечает"
