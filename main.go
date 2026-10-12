@@ -21,6 +21,7 @@ import (
 
 	"client/auth"
 	"client/crypto"
+	"client/files"
 )
 
 type SearchUserResponse struct {
@@ -74,28 +75,18 @@ type RequestCheckMessages struct {
 	Messages []byte `json:"Messages"` // или string, если хочешь base64
 }
 
-type SendFIleRequest struct {
-	Sender               string
-	Receiver             string
-	SenderPassword       string
-	FileName             string
-	Device               string
-	KeyForServerDataBase string
-	File                 []byte
-}
-
 func main() {
 	// // dialogKey := "345ee540ab4c6d32e733a6dd8fe3a9b393f52cf95bc89821209a2989f1c94b32"
 	device := "g35c47d72f1c8c8d.SM-A155F.mt6789"
-	resp := Reg("Mongol", "mongoliskii", "1234567890", device)
-	fmt.Println("new reg", resp)
+	// resp := Reg("Mongol", "mongoliskii", "1234567890", device)
+	// fmt.Println("new reg", resp)
 	// resp = Reg("Pes", "pesik", "1234567890", device)
 	// fmt.Println(resp)
 	// testECDHAlogoritm()
 	authMongol := Auth("Mongol", "1234567890", device)
 	fmt.Println(authMongol)
-	// authPes := Auth("Pes", "1234567890", device)
-	// fmt.Println(authPes)
+	authPes := Auth("Pes", "1234567890", device)
+	fmt.Println(authPes)
 	// keyMongol := strings.Split(authMongol, "\n")[0]
 	// keyPes := strings.Split(authPes, "\n")[0]
 
@@ -106,8 +97,8 @@ func main() {
 	// fmt.Println(SearchUser("Mongol", device, "Mongol", keyMongol, 1))
 
 	// fmt.Println("resp: ", SendFile("Mongol", "1234567890", "Pes", "hello", device, keyMongol, []byte("hello")))
-	// fmt.Println("resp get file: ", string(GetFile("Pes", "1234567890", "hello.202680204426783107200", device, keyPes)))
-	// fmt.Println("resp del file: ", DelFile("Pes", "1234567890", "hello.202680204426783107200", device, keyPes))
+	// fmt.Println("resp get file: ", string(GetFile("Pes", "1234567890", "storage/users/2026/10/12/18/0b72d726-19db-4eff-8005-e66453cd4683", device, keyPes)))
+	// fmt.Println("resp del file: ", DelFile("Pes", "1234567890", "storage/users/2026/10/12/18/0b72d726-19db-4eff-8005-e66453cd4683", device, keyPes))
 	// fmt.Println(SendMessage("Mongol", "1234567890", "Pes", device, rand.Text()+rand.Text()+rand.Text(), keyMongol))
 	// for i := 0; i < 1; i++ {
 	// fmt.Println(SendMessage("Mongol", "1234567890", "Pes", device, rand.Text()+rand.Text()+rand.Text()+rand.Text()+rand.Text()+rand.Text()+rand.Text()+rand.Text()+rand.Text()+rand.Text()+rand.Text()+rand.Text()+rand.Text()+rand.Text()+rand.Text()+rand.Text()+rand.Text()+rand.Text()+rand.Text()+rand.Text()+rand.Text()+rand.Text()+rand.Text()+rand.Text()+rand.Text()+rand.Text()+rand.Text()+rand.Text()+rand.Text()+rand.Text()+rand.Text()+rand.Text()+rand.Text()+rand.Text()+rand.Text()+rand.Text()+rand.Text()+rand.Text()+rand.Text(), keyMongol))
@@ -986,202 +977,17 @@ func AudioDialog(UUID, UserID, key string, message []byte) string {
 
 //export SendFile
 func SendFile(login, password, receiverLogin, fileName, deviceInfo, key string, file []byte) string {
-	timeout := 10 * time.Second
-
-	loginEcnrypted, err := crypto.StringEncrypt([]byte(login), key)
-	if err != nil {
-		return "$ ошибка зашифровки данных"
-	}
-	passwordEcnrypted, err := crypto.StringEncrypt([]byte(password), key)
-	if err != nil {
-		return "$ ошибка зашифровки данных"
-	}
-	receivedLoginEcnrypted, err := crypto.StringEncrypt([]byte(receiverLogin), key)
-	if err != nil {
-		return "$ ошибка зашифровки данных"
-	}
-	fileNameEcnrypted, err := crypto.StringEncrypt([]byte(fileName), key)
-	if err != nil {
-		return "$ ошибка зашифровки данных"
-	}
-	fileEcnrypted, err := crypto.StringEncryptByte(file, key)
-	if err != nil {
-		return "$ ошибка зашифровки данных"
-	}
-	hashedDeviceInfo := crypto.HashDeviceInfo(deviceInfo, login)
-
-	requestBody := SendFIleRequest{
-		Sender:               loginEcnrypted,
-		Receiver:             receivedLoginEcnrypted,
-		SenderPassword:       passwordEcnrypted,
-		FileName:             fileNameEcnrypted,
-		Device:               hashedDeviceInfo,
-		KeyForServerDataBase: crypto.GenKey(deviceInfo),
-		File:                 fileEcnrypted,
-	}
-
-	requestJSON, err := json.Marshal(requestBody)
-	if err != nil {
-		return "$ ошибка создания json"
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, "POST", forServerReq+mediumSizeDataServicePort+"/sendfile", bytes.NewBuffer(requestJSON))
-	if err != nil {
-		return "$ ошибка создания запроса"
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			return "$ сервер не отвечает"
-		} else {
-			return "$ ошибка отправки запроса"
-		}
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "$ ошибка чтения ответа"
-	}
-
-	switch resp.StatusCode {
-	case http.StatusOK:
-		return "Успешно отправлен"
-	case http.StatusBadRequest:
-		return "$ Проверьте правильность ввода данных "
-	case http.StatusForbidden:
-		return "$ Не правильный логин или пароль" + string(body)
-	case http.StatusInternalServerError:
-		return "$ Внутренняя ошибка сервера" + string(body)
-	default:
-		return "$ Неизвестная ошибка" + string(body)
-	}
+	return files.SendFile(login, password, receiverLogin, fileName, deviceInfo, key, file)
 }
 
 //export GetFile
 func GetFile(login, password, fileName, deviceInfo, key string) []byte {
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-	}
-
-	loginEcnrypted, err := crypto.StringEncrypt([]byte(login), key)
-	if err != nil {
-		return []byte("$ ошибка зашифровки")
-	}
-	passwordEncrypted, err := crypto.StringEncrypt([]byte(password), key)
-	if err != nil {
-		return []byte("$ ошибка зашифровки")
-	}
-	fileNameEncrypted, err := crypto.StringEncrypt([]byte(fileName), key)
-	if err != nil {
-		return []byte("$ ошибка зашифровки")
-	}
-	hashedDeviceInfo := crypto.HashDeviceInfo(deviceInfo, login)
-
-	formData := url.Values{}
-	formData.Add("login", loginEcnrypted)
-	formData.Add("password", passwordEncrypted)
-	formData.Add("filename", fileNameEncrypted)
-	formData.Add("device", hashedDeviceInfo)
-	formData.Add("forserver", crypto.GenKey(deviceInfo))
-
-	resp, err := client.PostForm(forServerReq+mediumSizeDataServicePort+"/getfile", formData)
-	if err != nil {
-		if os.IsTimeout(err) {
-			return []byte("$ Сервер не отвечает")
-		}
-		return []byte("$ Не удается установить соединение с сервером")
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return []byte("$ Не удается обработать ответ сервера")
-	}
-
-	switch resp.StatusCode {
-	case http.StatusOK:
-		var encryptedFile []byte
-		if err := json.Unmarshal(body, &encryptedFile); err != nil {
-			return []byte("$ ошибка расшифровки")
-		}
-
-		decryptedFile, err := crypto.StringDecryptByte(encryptedFile, key)
-		if err != nil {
-			return []byte("$ ошибка расшифровки")
-		}
-		return decryptedFile
-	case http.StatusBadRequest:
-		return []byte("$ Проверьте правильность ввода данных")
-	case http.StatusForbidden:
-		return []byte("$ Не правильный логин или пароль")
-	case http.StatusInternalServerError:
-		resp, _ := crypto.StringDecrypt(string(body), key)
-		return []byte("$ Внутренняя ошибка сервера" + resp)
-	default:
-		return []byte("$ Неизвестная ошибка")
-	}
+	return files.GetFile(login, password, fileName, deviceInfo, key)
 }
 
 //export DelFile
 func DelFile(login, password, fileName, deviceInfo, key string) string {
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-	}
-
-	loginEcnrypted, err := crypto.StringEncrypt([]byte(login), key)
-	if err != nil {
-		return "$ ошибка зашифровки"
-	}
-	passwordEncrypted, err := crypto.StringEncrypt([]byte(password), key)
-	if err != nil {
-		return "$ ошибка зашифровки"
-	}
-	fileNameEncrypted, err := crypto.StringEncrypt([]byte(fileName), key)
-	if err != nil {
-		return "$ ошибка зашифровки"
-	}
-	hashedDeviceInfo := crypto.HashDeviceInfo(deviceInfo, login)
-
-	formData := url.Values{}
-	formData.Add("login", loginEcnrypted)
-	formData.Add("password", passwordEncrypted)
-	formData.Add("filename", fileNameEncrypted)
-	formData.Add("device", hashedDeviceInfo)
-	formData.Add("forserver", crypto.GenKey(deviceInfo))
-
-	resp, err := client.PostForm(forServerReq+mediumSizeDataServicePort+"/delfile", formData)
-	if err != nil {
-		if os.IsTimeout(err) {
-			return "$ Сервер не отвечает"
-		}
-		return "$ Не удается установить соединение с сервером"
-	}
-	defer resp.Body.Close()
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return "$ Не удается обработать ответ сервера"
-	}
-
-	switch resp.StatusCode {
-	case http.StatusOK:
-		return "Успешно удалено"
-	case http.StatusBadRequest:
-		return "$ Проверьте правильность ввода данных " + string(body)
-	case http.StatusForbidden:
-		return "$ Не правильный логин или пароль" + string(body)
-	case http.StatusInternalServerError:
-		return "$ Внутренняя ошибка сервера" + string(body)
-	default:
-		return "$ Неизвестная ошибка" + string(body)
-	}
+	return files.DelFile(login, password, fileName, deviceInfo, key)
 }
 
 func CompressGzip(data []byte) ([]byte, error) {
