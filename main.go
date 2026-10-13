@@ -56,14 +56,6 @@ const (
 	designationOfAnswerDialog = "a"
 )
 
-type Avatar struct {
-	Avatar               []byte `json:"avatar"`
-	Login                string `json:"login"`
-	Password             string `json:"password"`
-	DeviceInfo           string `json:"deviceinfo"`
-	KeyForServerDataBase string `json:"forserver"`
-}
-
 type RequestAudio struct {
 	UUID    string
 	UserID  string
@@ -88,7 +80,18 @@ func main() {
 	authPes := Auth("Pes", "1234567890", device)
 	fmt.Println(authPes)
 	// keyMongol := strings.Split(authMongol, "\n")[0]
-	// keyPes := strings.Split(authPes, "\n")[0]
+	keyPes := strings.Split(authPes, "\n")[0]
+
+	// avatarBytes, err := os.ReadFile("F:/GolangProjects/BubleMessenger/client/192.webp")
+	// if err != nil {
+	// 	fmt.Println(err)
+	// }
+	// fmt.Println("set avatar pes", SetAvatar("Pes", "1234567890", device, keyPes, avatarBytes))
+	// fmt.Println("set avatar mongol", SetAvatar("Mongol", "1234567890", device, keyMongol, avatarBytes))
+	mongolAvatar := GetAvatar("Pes", "1234567890", "Mongol", device, keyPes)
+	fmt.Println(os.WriteFile("mongolAvatar.webp", mongolAvatar, 0644))
+	pesAvatar := GetAvatar("Pes", "1234567890", "Pes", device, keyPes)
+	fmt.Println(os.WriteFile("pesAvatar.webp", pesAvatar, 0644))
 
 	// fmt.Println("check messages: ", CheckMessages("Mongol", "1234567890", device, keyMongol))
 	// fmt.Println("del: ", DelMessages("Mongol", "1234567890", device, keyMongol))
@@ -665,138 +668,12 @@ func EndInitDialog(privBase64, user2PubBase64, loginCommunicating string) string
 
 //export SetAvatar
 func SetAvatar(login, password, deviceInfo, key string, avatar []byte) string {
-	loginEcnrypted, err := crypto.StringEncrypt([]byte(login), key)
-	if err != nil {
-		return "$ ошибка зашифровки"
-	}
-	passwordEncrypted, err := crypto.StringEncrypt([]byte(password), key)
-	if err != nil {
-		return "$ ошибка зашифровки"
-	}
-	avatarEncrypted, err := crypto.StringEncryptByte(avatar, key)
-	if err != nil {
-		return "$ ошибка зашифровки 1"
-	}
-	hashedDeviceInfo := crypto.HashDeviceInfo(deviceInfo, login)
-	fmt.Println("hashedDeviceInfo ", hashedDeviceInfo)
-
-	payload := Avatar{
-		Avatar:               avatarEncrypted,
-		Login:                loginEcnrypted,
-		Password:             passwordEncrypted,
-		DeviceInfo:           hashedDeviceInfo,
-		KeyForServerDataBase: crypto.GenKey(deviceInfo),
-	}
-
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return "$ Ошибка при маршалинге JSON:" + err.Error()
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, forServerReq+mediumSizeDataServicePort+"/setavatar", bytes.NewReader(body))
-	if err != nil {
-		return "$ Ошибка при создании запроса:" + err.Error()
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			return "$ Сервер не ответил в течение 10 секунд. Завершение программы."
-		}
-		return "$ Ошибка при выполнении запроса:" + err.Error()
-	}
-	defer resp.Body.Close()
-
-	switch resp.StatusCode {
-	case http.StatusOK:
-		return "Аватар усшпено загружен"
-	case http.StatusBadRequest:
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return "Не удается обработать ответ сервера"
-		}
-		return "$ " + string(body)
-	case http.StatusForbidden:
-		return "$ Не правильный логин или пароль"
-	case http.StatusInternalServerError:
-		resp, _ := crypto.StringDecrypt(string(body), key)
-		return "$ Внутренняя ошибка сервера" + resp
-	default:
-		return "$ Неизвестная ошибка"
-	}
+	return files.SetAvatar(login, password, deviceInfo, key, avatar)
 }
 
 //export GetAvatar
-func GetAvatar(login, loginForSearch, deviceInfo, key string) []byte {
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-	}
-
-	loginEcnrypted, err := crypto.StringEncrypt([]byte(loginForSearch), key)
-	if err != nil {
-		return []byte{}
-	}
-	hashedDeviceInfo := crypto.HashDeviceInfo(deviceInfo, login)
-
-	formData := url.Values{}
-	formData.Add("loginforsearch", loginEcnrypted)
-	formData.Add("device", hashedDeviceInfo)
-	fmt.Println("hashedDeviceInfo ", hashedDeviceInfo)
-	formData.Add("forserver", crypto.GenKey(deviceInfo))
-
-	resp, err := client.PostForm(forServerReq+mediumSizeDataServicePort+"/getavatar", formData)
-	if err != nil {
-		fmt.Println(err)
-		if os.IsTimeout(err) {
-			return []byte{}
-		}
-		return []byte{}
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil
-	}
-
-	fmt.Println("resp ", string(respBody))
-	fmt.Println(resp.StatusCode)
-	switch resp.StatusCode {
-	case http.StatusOK:
-		var encAvatar []byte
-		if err := json.Unmarshal(respBody, &encAvatar); err != nil {
-			// Если не получилось, возможно сервер вернул JSON-строку или plain string с зашифрованными байтами
-			var s string
-			if err2 := json.Unmarshal(respBody, &s); err2 == nil {
-				encAvatar = []byte(s)
-			} else {
-				// как запасной вариант — попробовать использовать сырое тело без JSON
-				encAvatar = respBody
-			}
-		}
-
-		// Расшифровываем полученные байты
-		decAvatar, err := crypto.StringDecryptByte(encAvatar, key)
-		if err != nil {
-			fmt.Println("decrypt avatar:", err)
-			return nil
-		}
-		return decAvatar
-	case http.StatusNoContent:
-		return []byte{}
-	case http.StatusBadRequest:
-		return []byte{}
-	case http.StatusInternalServerError:
-		return []byte{}
-	default:
-		return []byte{}
-	}
+func GetAvatar(login, password, loginForSearch, deviceInfo, key string) []byte {
+	return files.GetAvatar(login, password, loginForSearch, deviceInfo, key)
 }
 
 //export InitAudioDialog
