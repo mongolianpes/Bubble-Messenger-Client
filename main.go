@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"compress/gzip"
 	"context"
 	"crypto/ecdh"
 	"crypto/rand"
@@ -11,7 +10,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -22,6 +20,7 @@ import (
 	"client/auth"
 	"client/crypto"
 	"client/files"
+	"client/messages"
 )
 
 type SearchUserResponse struct {
@@ -40,12 +39,6 @@ type FindUser struct {
 	Name  string `json:"name"`
 }
 
-type Message struct {
-	Sender   string    `json:"Sender"`
-	Message  string    `json:"Message"`
-	SendTime time.Time `json:"SendTime"`
-}
-
 const (
 	// forServerReq string = "http://185.121.15.223:"
 	forServerReq              = "http://localhost:"
@@ -62,11 +55,6 @@ type RequestAudio struct {
 	Message []byte
 }
 
-type RequestCheckMessages struct {
-	Gzip     bool   `json:"Gzip"`
-	Messages []byte `json:"Messages"` // или string, если хочешь base64
-}
-
 func main() {
 	// // dialogKey := "345ee540ab4c6d32e733a6dd8fe3a9b393f52cf95bc89821209a2989f1c94b32"
 	device := "g35c47d72f1c8c8d.SM-A155F.mt6789"
@@ -79,22 +67,27 @@ func main() {
 	fmt.Println(authMongol)
 	authPes := Auth("Pes", "1234567890", device)
 	fmt.Println(authPes)
-	// keyMongol := strings.Split(authMongol, "\n")[0]
+	keyMongol := strings.Split(authMongol, "\n")[0]
 	keyPes := strings.Split(authPes, "\n")[0]
 
+	// ТЕСТ ФАЙЛОВ: аватарки
 	// avatarBytes, err := os.ReadFile("F:/GolangProjects/BubleMessenger/client/192.webp")
 	// if err != nil {
 	// 	fmt.Println(err)
 	// }
 	// fmt.Println("set avatar pes", SetAvatar("Pes", "1234567890", device, keyPes, avatarBytes))
 	// fmt.Println("set avatar mongol", SetAvatar("Mongol", "1234567890", device, keyMongol, avatarBytes))
-	mongolAvatar := GetAvatar("Pes", "1234567890", "Mongol", device, keyPes)
-	fmt.Println(os.WriteFile("mongolAvatar.webp", mongolAvatar, 0644))
-	pesAvatar := GetAvatar("Pes", "1234567890", "Pes", device, keyPes)
-	fmt.Println(os.WriteFile("pesAvatar.webp", pesAvatar, 0644))
+	// mongolAvatar := GetAvatar("Pes", "1234567890", "Mongol", device, keyPes)
+	// fmt.Println(os.WriteFile("mongolAvatar.webp", mongolAvatar, 0644))
+	// pesAvatar := GetAvatar("Pes", "1234567890", "Pes", device, keyPes)
+	// fmt.Println(os.WriteFile("pesAvatar.webp", pesAvatar, 0644))
 
-	// fmt.Println("check messages: ", CheckMessages("Mongol", "1234567890", device, keyMongol))
-	// fmt.Println("del: ", DelMessages("Mongol", "1234567890", device, keyMongol))
+	// ТЕСТ сообщений
+	fmt.Println("send message: ", SendMessage("Pes", "1234567890", "Mongol", device, "pon", keyPes))
+	fmt.Println("check messages: ", CheckMessages("Mongol", "1234567890", device, keyMongol))
+	fmt.Println("del: ", DelMessages("Mongol", "1234567890", device, keyMongol))
+	fmt.Println("check messages: ", CheckMessages("Mongol", "1234567890", device, keyMongol))
+
 	// fmt.Println(SearchUser("Mongol", device, "Pes", keyMongol, 1))
 	// fmt.Println(SearchUser("Mongol", device, "Mongoliseker", keyMongol, 1))
 	// fmt.Println(SearchUser("Mongol", device, "Mongol", keyMongol, 1))
@@ -330,8 +323,7 @@ func SearchUser(login, deviceInfo, loginForSearch, key string, numSeaerchRequest
 
 //export SendMessage
 func SendMessage(senderLogin, senderPassword, receiverLogin, deviceInfo, message, key string) string {
-	resp := sendMessageToServer(senderLogin, senderPassword, receiverLogin, deviceInfo, message, key)
-	return resp
+	return messages.SendMessage(senderLogin, senderPassword, receiverLogin, deviceInfo, message, key)
 }
 
 func sendMessageToServer(senderLogin, senderPassword, receiverLogin, deviceInfo, message, key string) string {
@@ -406,158 +398,12 @@ func sendMessageToServer(senderLogin, senderPassword, receiverLogin, deviceInfo,
 
 //export CheckMessages
 func CheckMessages(login, password, deviceInfo, key string) string {
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-	}
-
-	loginEcnrypted, err := crypto.StringEncrypt([]byte(login), key)
-	if err != nil {
-		return "$ ошибка зашифровки"
-	}
-	passwordEncrypted, err := crypto.StringEncrypt([]byte(password), key)
-	if err != nil {
-		return "$ ошибка зашифровки"
-	}
-	hashedDeviceInfo := crypto.HashDeviceInfo(deviceInfo, login)
-
-	formData := url.Values{}
-	formData.Add("login", loginEcnrypted)
-	formData.Add("password", passwordEncrypted)
-	formData.Add("device", hashedDeviceInfo)
-	formData.Add("forserver", crypto.GenKey(deviceInfo))
-
-	resp, err := client.PostForm(forServerReq+mainServicePort+"/checkmessage", formData)
-	if err != nil {
-		if os.IsTimeout(err) {
-			return "$ Сервер не отвечает"
-		}
-		return "$ Не удается установить соединение с сервером"
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "$ Не удается обработать ответ сервера"
-	}
-
-	switch resp.StatusCode {
-	case http.StatusOK:
-		var response RequestCheckMessages
-		if err := json.Unmarshal(body, &response); err != nil {
-			return "$ Некорректный формат ответа от сервера"
-		}
-		decryptedResp, err := crypto.StringDecryptByte(response.Messages, key)
-		if err != nil {
-			return "$ Ошибка расшифровки ответа"
-		}
-
-		if response.Gzip {
-			decryptedResp, err = DecompressGzip(decryptedResp)
-			if err != nil {
-				return "$ не удалось распаковать сообщения"
-			}
-		}
-
-		lines := strings.Split(string(decryptedResp), "\n")
-		var result strings.Builder
-
-		for li, line := range lines {
-			line = strings.TrimSpace(line)
-			if line == "" {
-				continue
-			}
-
-			var msg Message
-			if err := json.Unmarshal([]byte(line), &msg); err != nil {
-				return "$ ошибка обработки ответа, попробуй еще раз " + err.Error()
-			}
-
-			date := msg.SendTime.Format("02.01.2006 15:04")
-			_, offsetSeconds := msg.SendTime.Zone()
-			offsetHours := offsetSeconds / 3600
-			offsetShort := fmt.Sprintf("%+03d", offsetHours)
-
-			result.WriteString(msg.Sender)
-			result.WriteString("\\\\")
-			result.WriteString(msg.Message)
-			result.WriteString("\\\\")
-			result.WriteString(date)
-			result.WriteString(" ")
-			result.WriteString(offsetShort)
-
-			// добавляем перевод строки между записями
-			if li < len(lines)-1 {
-				result.WriteString("\n")
-			}
-		}
-
-		out := result.String()
-
-		return out
-	case http.StatusBadRequest:
-		return "$ Проверьте правильность ввода данных"
-	case http.StatusForbidden:
-		return "$ Не правильный логин или пароль"
-	case http.StatusInternalServerError:
-		resp, _ := crypto.StringDecrypt(string(body), key)
-		return "$ Внутренняя ошибка сервера" + resp
-	default:
-		return "$ Неизвестная ошибка"
-	}
+	return messages.CheckMessages(login, password, deviceInfo, key)
 }
 
 //export DelMessages
 func DelMessages(login, password, deviceInfo, key string) string {
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-	}
-
-	loginEcnrypted, err := crypto.StringEncrypt([]byte(login), key)
-	if err != nil {
-		return "$ ошибка зашифровки"
-	}
-	passwordEncrypted, err := crypto.StringEncrypt([]byte(password), key)
-	if err != nil {
-		return "$ ошибка зашифровки"
-	}
-	hashedDeviceInfo := crypto.HashDeviceInfo(deviceInfo, login)
-
-	formData := url.Values{}
-	formData.Add("login", loginEcnrypted)
-	formData.Add("password", passwordEncrypted)
-	formData.Add("device", hashedDeviceInfo)
-	formData.Add("forserver", crypto.GenKey(deviceInfo))
-
-	resp, err := client.PostForm(forServerReq+mediumSizeDataServicePort+"/delmessages", formData)
-	if err != nil {
-		if os.IsTimeout(err) {
-			return "$ Сервер не отвечает"
-		}
-		return "$ Не удается установить соединение с сервером"
-	}
-	defer resp.Body.Close()
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return "$ Не удается обработать ответ сервера"
-	}
-
-	switch resp.StatusCode {
-	case http.StatusOK:
-		return "Успешно удалено"
-	case http.StatusBadRequest:
-		resp, err := crypto.StringDecrypt(string(body), key)
-		if err != nil {
-			return "$ ошибка при расшифровке " + err.Error()
-		}
-		return "$ Проверьте правильность ввода данных " + resp
-	case http.StatusForbidden:
-		return "$ Не правильный логин или пароль" + string(body)
-	case http.StatusInternalServerError:
-		return "$ Внутренняя ошибка сервера" + string(body)
-	default:
-		return "$ Неизвестная ошибка" + string(body)
-	}
+	return messages.DelMessages(login, password, deviceInfo, key)
 }
 
 func initiatorKeyGeneration() (string, string, error) {
@@ -865,27 +711,4 @@ func GetFile(login, password, fileName, deviceInfo, key string) []byte {
 //export DelFile
 func DelFile(login, password, fileName, deviceInfo, key string) string {
 	return files.DelFile(login, password, fileName, deviceInfo, key)
-}
-
-func CompressGzip(data []byte) ([]byte, error) {
-	var buf bytes.Buffer
-	gz := gzip.NewWriter(&buf)
-	_, err := gz.Write(data)
-	if err != nil {
-		return nil, err
-	}
-	if err := gz.Close(); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
-}
-
-func DecompressGzip(compressed []byte) ([]byte, error) {
-	r, err := gzip.NewReader(bytes.NewReader(compressed))
-	if err != nil {
-		return nil, err
-	}
-	defer r.Close()
-
-	return io.ReadAll(r)
 }
