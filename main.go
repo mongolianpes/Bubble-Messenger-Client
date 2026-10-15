@@ -18,6 +18,7 @@ import (
 	"client/crypto"
 	"client/files"
 	"client/messages"
+	"client/search"
 )
 
 type SearchUserResponse struct {
@@ -29,11 +30,6 @@ type ForDelMessages struct {
 	Password string
 	Device   string
 	Messages []string
-}
-
-type FindUser struct {
-	Login string `json:"login"`
-	Name  string `json:"name"`
 }
 
 const (
@@ -57,13 +53,15 @@ func main() {
 	// fmt.Println("new reg", resp)
 	// resp = Reg("Pes", "pesik", "1234567890", device)
 	// fmt.Println(resp)
+	// resp := Reg("Mongoliseker", "mongolisek", "1234567890", device)
+	// fmt.Println(resp)
 	// testECDHAlogoritm()
 	authMongol := Auth("Mongol", "1234567890", device)
 	fmt.Println(authMongol)
-	authPes := Auth("Pes", "1234567890", device)
-	fmt.Println(authPes)
+	// authPes := Auth("Pes", "1234567890", device)
+	// fmt.Println(authPes)
 	keyMongol := strings.Split(authMongol, "\n")[0]
-	keyPes := strings.Split(authPes, "\n")[0]
+	// keyPes := strings.Split(authPes, "\n")[0]
 
 	// ТЕСТ ФАЙЛОВ: аватарки
 	// avatarBytes, err := os.ReadFile("F:/GolangProjects/BubleMessenger/client/192.webp")
@@ -84,13 +82,14 @@ func main() {
 	// fmt.Println("check messages: ", CheckMessages("Mongol", "1234567890", device, keyMongol))
 
 	// ТЕСТ инициализации аудио диалога
-	fmt.Println("del messages (pes): ", DelMessages("Pes", "1234567890", device, keyPes))
-	fmt.Println("del messages (mongol): ", DelMessages("Mongol", "1234567890", device, keyMongol))
-	testECDHAlgorithm()
+	// fmt.Println("del messages (pes): ", DelMessages("Pes", "1234567890", device, keyPes))
+	// fmt.Println("del messages (mongol): ", DelMessages("Mongol", "1234567890", device, keyMongol))
+	// testECDHAlgorithm()
 
-	// fmt.Println(SearchUser("Mongol", device, "Pes", keyMongol, 1))
-	// fmt.Println(SearchUser("Mongol", device, "Mongoliseker", keyMongol, 1))
-	// fmt.Println(SearchUser("Mongol", device, "Mongol", keyMongol, 1))
+	// ТЕСТ поиска
+	fmt.Println("search: ", SearchUser("Mongol", "1234567890", device, "Pes", keyMongol, 1))
+	fmt.Println("search: ", SearchUser("Mongol", "1234567890", device, "@Mongoliseker", keyMongol, 1))
+	fmt.Println("search: ", SearchUser("Mongol", "1234567890", device, "Mongol", keyMongol, 1))
 
 	// fmt.Println("resp: ", SendFile("Mongol", "1234567890", "Pes", "hello", device, keyMongol, []byte("hello")))
 	// fmt.Println("resp get file: ", string(GetFile("Pes", "1234567890", "storage/users/2026/10/12/18/0b72d726-19db-4eff-8005-e66453cd4683", device, keyPes)))
@@ -252,79 +251,8 @@ func Auth(login, password, deviceInfo string) string {
 }
 
 //export SearchUser
-func SearchUser(login, deviceInfo, loginForSearch, key string, numSeaerchRequest int) string {
-	client := http.Client{
-		Timeout: 10 * time.Second,
-	}
-
-	hashedDeviceInfo := crypto.HashDeviceInfo(deviceInfo, login)
-
-	loginForSearchEncrypt, err := crypto.StringEncrypt([]byte(loginForSearch), key)
-	if err != nil {
-		return "$ Необходимо заново авторизоваться"
-	}
-
-	formData := url.Values{}
-	formData.Add("device", hashedDeviceInfo)
-	formData.Add("loginforsearch", loginForSearchEncrypt)
-	formData.Add("forserver", crypto.GenKey(deviceInfo))
-
-	resp, err := client.PostForm(forServerReq+mainServicePort+"/searchuser", formData)
-	if err != nil {
-		if os.IsTimeout(err) {
-			return "$ Сервер не отвечает по причине долгого ответа"
-		}
-		return "$ Сервер не отвечает по какому то дерьму"
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "$ Не удалось прочитать ответ от сервера"
-	}
-
-	switch resp.StatusCode {
-	case http.StatusOK:
-		body, err = crypto.StringDecryptByte(body, key)
-		if err != nil {
-			fmt.Println(err)
-		}
-
-		var findUsers []FindUser
-		var out string
-		if err := json.Unmarshal(body, &findUsers); err != nil {
-			return "$ ошибка обработки ответа, попробуй еще раз " + err.Error()
-		}
-
-		// out += strconv.Itoa(resp.NumSeaerchRequest)
-
-		fmt.Println(findUsers)
-		for findUser := range findUsers {
-			if findUsers[findUser].Login == login {
-				continue
-			}
-
-			if out != "" {
-				out += "\n"
-			}
-
-			out += findUsers[findUser].Login + " "
-
-			out += findUsers[findUser].Name
-		}
-
-		return out
-	case http.StatusInternalServerError:
-		decryptedResp, err := crypto.StringDecrypt(string(body), key)
-		if err != nil {
-			return "$ ошибка чтения ответа" + err.Error()
-		}
-		return "$ " + decryptedResp
-	case http.StatusBadRequest:
-		return "$ " + string(body)
-	default:
-		return "$ " + string(body)
-	}
+func SearchUser(login, password, deviceInfo, loginForSearch, key string, numSeaerchRequest int) string {
+	return search.SearchUser(login, password, deviceInfo, loginForSearch, key, numSeaerchRequest)
 }
 
 //export SendMessage
