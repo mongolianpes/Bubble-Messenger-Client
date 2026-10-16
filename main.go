@@ -1,50 +1,17 @@
 package main
 
 import (
-	"bytes"
-	"context"
-	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-	"net/url"
-	"os"
 	"strings"
 	"time"
 
+	"client/audiodialog"
 	"client/auth"
-	"client/crypto"
 	"client/files"
 	"client/messages"
 	"client/search"
 )
-
-type SearchUserResponse struct {
-	Users []string
-}
-
-type ForDelMessages struct {
-	Login    string
-	Password string
-	Device   string
-	Messages []string
-}
-
-const (
-	// forServerReq string = "http://185.121.15.223:"
-	forServerReq              = "http://localhost:"
-	mainServicePort           = "23099"
-	mediumSizeDataServicePort = "23098"
-	audioDialogServicePort    = "23097"
-)
-
-type RequestAudio struct {
-	UUID    string
-	UserID  string
-	Message []byte
-}
 
 func main() {
 	// // dialogKey := "345ee540ab4c6d32e733a6dd8fe3a9b393f52cf95bc89821209a2989f1c94b32"
@@ -55,13 +22,12 @@ func main() {
 	// fmt.Println(resp)
 	// resp := Reg("Mongoliseker", "mongolisek", "1234567890", device)
 	// fmt.Println(resp)
-	// testECDHAlogoritm()
 	authMongol := Auth("Mongol", "1234567890", device)
 	fmt.Println(authMongol)
-	// authPes := Auth("Pes", "1234567890", device)
-	// fmt.Println(authPes)
+	authPes := Auth("Pes", "1234567890", device)
+	fmt.Println(authPes)
 	keyMongol := strings.Split(authMongol, "\n")[0]
-	// keyPes := strings.Split(authPes, "\n")[0]
+	keyPes := strings.Split(authPes, "\n")[0]
 
 	// ТЕСТ ФАЙЛОВ: аватарки
 	// avatarBytes, err := os.ReadFile("F:/GolangProjects/BubleMessenger/client/192.webp")
@@ -87,9 +53,14 @@ func main() {
 	// testECDHAlgorithm()
 
 	// ТЕСТ поиска
-	fmt.Println("search: ", SearchUser("Mongol", "1234567890", device, "Pes", keyMongol, 1))
-	fmt.Println("search: ", SearchUser("Mongol", "1234567890", device, "@Mongoliseker", keyMongol, 1))
-	fmt.Println("search: ", SearchUser("Mongol", "1234567890", device, "Mongol", keyMongol, 1))
+	// fmt.Println("search: ", SearchUser("Mongol", "1234567890", device, "Pes", keyMongol, 1))
+	// fmt.Println("search: ", SearchUser("Mongol", "1234567890", device, "@Mongoliseker", keyMongol, 1))
+	// fmt.Println("search: ", SearchUser("Mongol", "1234567890", device, "Mongol", keyMongol, 1))
+
+	// ТЕСТ аудио диалога
+	fmt.Println("del messages (pes): ", DelMessages("Pes", "1234567890", device, keyPes))
+	fmt.Println("del messages (mongol): ", DelMessages("Mongol", "1234567890", device, keyMongol))
+	testAlgorithmAudioDialog()
 
 	// fmt.Println("resp: ", SendFile("Mongol", "1234567890", "Pes", "hello", device, keyMongol, []byte("hello")))
 	// fmt.Println("resp get file: ", string(GetFile("Pes", "1234567890", "storage/users/2026/10/12/18/0b72d726-19db-4eff-8005-e66453cd4683", device, keyPes)))
@@ -155,18 +126,19 @@ func testAlgorithmAudioDialog() {
 	keyPes := strings.Split(authPes, "\n")[0]
 
 	init := InitAudioDialog("Mongol", "1234567890", "Pes", device, keyMongol)
-	fmt.Println(init)
+	fmt.Println("init audio dialog: ", init)
 	initSlice := strings.Split(init, "\\")
+	fmt.Println("init slice (mongol): ", initSlice)
 	firstAudioDialog := AudioDialog(initSlice[0], initSlice[1], keyMongol, []byte("messeeafge"))
-	fmt.Println(firstAudioDialog)
+	fmt.Println("send first message (mongol): ", firstAudioDialog)
 
 	fmt.Println("........")
 	init2 := CheckMessages("Pes", "1234567890", device, keyPes)
-	fmt.Println(init2)
+	fmt.Println("check message (pes): ", init2)
 	time.Sleep(time.Second * 2)
 	initSlice2 := strings.Split(init2, "\\\\")
 	initSlice2 = strings.Split(initSlice2[1], "\\")
-	fmt.Println(initSlice2)
+	fmt.Println("init slice (pes): ", initSlice2)
 
 	go func() {
 		i := 1
@@ -174,24 +146,25 @@ func testAlgorithmAudioDialog() {
 			text := fmt.Sprint(i)
 			i++
 			r := AudioDialog(initSlice[0], initSlice[1], keyMongol, []byte(text))
-			fmt.Println("уещ ", string(r))
+			responses := strings.Split(r, "\\")
+			for _, resp := range responses {
+				rByte, err := hex.DecodeString(resp)
+				fmt.Println("mongol: ", string(rByte), err)
+			}
 		}
 	}()
 	go func() {
+		i := 1
 		for {
-			text := rand.Text()
-			r := AudioDialog(initSlice[0], initSlice2[3], keyMongol, []byte(text))
-			s := strings.Split(r, "\\")
-			i := 1
-			for _, a := range s {
-				if i == 0 || i == 2 || i == 4 || i == 6 {
-					continue
-				}
-				b, _ := hex.DecodeString(a)
-				fmt.Println("уещooooo ", string(b))
-				i += 2
+			text := fmt.Sprint(i)
+			i++
+			r := AudioDialog(initSlice2[1], initSlice2[2], keyMongol, []byte(text))
+			responses := strings.Split(r, "\\")
+			for _, resp := range responses {
+				rByte, err := hex.DecodeString(resp)
+				fmt.Println("pes: ", string(rByte), err)
 			}
-			time.Sleep(time.Microsecond * 20)
+			time.Sleep(time.Microsecond * 2000)
 		}
 	}()
 
@@ -260,76 +233,6 @@ func SendMessage(senderLogin, senderPassword, receiverLogin, deviceInfo, message
 	return messages.SendMessage(senderLogin, senderPassword, receiverLogin, deviceInfo, message, key)
 }
 
-func sendMessageToServer(senderLogin, senderPassword, receiverLogin, deviceInfo, message, key string) string {
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-	}
-
-	senderLoginEncrypted, err := crypto.StringEncrypt([]byte(senderLogin), key)
-	if err != nil {
-		return "$ ошибка зашифровки"
-	}
-	receiverLoginEncrypted, err := crypto.StringEncrypt([]byte(receiverLogin), key)
-	if err != nil {
-		return "$ ошибка зашифровки"
-	}
-	messageEncrypted, err := crypto.StringEncrypt([]byte(message), key)
-	if err != nil {
-		return "$ ошибка зашифровки"
-	}
-	senderPasswordEncrypted, err := crypto.StringEncrypt([]byte(senderPassword), key)
-	if err != nil {
-		return "$ ошибка зашифровки"
-	}
-	hashedDeviceInfo := crypto.HashDeviceInfo(deviceInfo, senderLogin)
-
-	formData := url.Values{}
-	formData.Add("senderlogin", senderLoginEncrypted)
-	formData.Add("senderpassword", senderPasswordEncrypted)
-	formData.Add("receiverlogin", receiverLoginEncrypted)
-	formData.Add("device", hashedDeviceInfo)
-	formData.Add("message", messageEncrypted)
-	formData.Add("forserver", crypto.GenKey(deviceInfo))
-	// if !(message[0] == designationOfAnswerDialog[0] || message[0] == designationOfInitDialog[0]) {
-	// 	formData.Add("senderLoginHashed", crypto.HashLogin(senderLogin, dialogKey))
-	// }
-
-	resp, err := client.PostForm(forServerReq+mainServicePort+"/sendmessage", formData)
-	if err != nil {
-		if os.IsTimeout(err) {
-			return "$ Сервер не отвечает"
-		}
-		return "$ Не удается установить соединение с сервером"
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "$ Не удается обработать ответ сервера"
-	}
-
-	switch resp.StatusCode {
-	case http.StatusOK:
-		if string(body) == "" {
-			return "Сообщение отправлено"
-		}
-		respDecrypted, err := crypto.StringDecrypt(string(body), key)
-		if err != nil {
-			return "$ ошибка расшифровки"
-		}
-		return respDecrypted
-	case http.StatusBadRequest:
-		return "$ Проверьте правильность ввода данных"
-	case http.StatusForbidden:
-		return "$ Не правильный логин или пароль"
-	case http.StatusInternalServerError:
-		resp, _ := crypto.StringDecrypt(string(body), key)
-		return "$ Внутренняя ошибка сервера:" + resp
-	default:
-		return "$ " + string(body)
-	}
-}
-
 //export CheckMessages
 func CheckMessages(login, password, deviceInfo, key string) string {
 	return messages.CheckMessages(login, password, deviceInfo, key)
@@ -367,12 +270,12 @@ func GetAvatar(login, password, loginForSearch, deviceInfo, key string) []byte {
 
 //export InitAudioDialog
 func InitAudioDialog(senderLogin, senderPassword, receiverLogin, deviceInfo, key string) string {
-	return sendMessageToServer(senderLogin, senderPassword, receiverLogin, deviceInfo, "a\\", key)
+	return messages.InitAudioDialog(senderLogin, senderPassword, receiverLogin, deviceInfo, key)
 }
 
 //export StopAudioDialog
 func StopAudioDialog(senderLogin, senderPassword, receiverLogin, dialogUUID, deviceInfo, key string) string {
-	return sendMessageToServer(senderLogin, senderPassword, receiverLogin, deviceInfo, fmt.Sprintf("as\\%v", dialogUUID), key)
+	return messages.StopAudioDialog(senderLogin, senderPassword, receiverLogin, dialogUUID, deviceInfo, key)
 }
 
 //	func AudioDialog(UUID, UserID, key string, message []byte) map[int][]byte {
@@ -472,73 +375,9 @@ func StopAudioDialog(senderLogin, senderPassword, receiverLogin, dialogUUID, dev
 // map[int][]byte
 //
 //export AudioDialog
+
 func AudioDialog(UUID, UserID, key string, message []byte) string {
-	encrypted, err := crypto.StringEncryptByte(message, key)
-	if err != nil {
-		return "$ ошибка шифрования сообщения"
-	}
-
-	payload := RequestAudio{
-		UUID:    UUID,
-		UserID:  UserID,
-		Message: encrypted,
-	}
-
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return "$ Ошибка маршалинга JSON"
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, forServerReq+audioDialogServicePort+"/audiodialog", bytes.NewReader(body))
-	if err != nil {
-		return "$ Ошибка создания запроса"
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "$ Ошибка выполнения запроса"
-	}
-	defer resp.Body.Close()
-
-	raw, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "$ Ошибка чтения ответа"
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return "$ Ошибка сервера"
-	}
-
-	var data map[string]map[string][]byte
-	if err := json.Unmarshal(raw, &data); err != nil {
-		return "$ Ошибка парсинга ответа"
-	}
-
-	count := 1
-	result := ""
-	for user, msgs := range data {
-		if user == UserID {
-			continue
-		}
-		for _, msg := range msgs {
-			dec, err := crypto.StringDecryptByte(msg, key)
-			if err == nil {
-				// result[count] = dec
-				if len(result) == 0 {
-					result = hex.EncodeToString(dec)
-				} else {
-					result += "\\" + hex.EncodeToString(dec)
-				}
-				count++
-			}
-		}
-	}
-
-	return result
+	return audiodialog.AudioDialog(UUID, UserID, key, message)
 }
 
 //export SendFile
