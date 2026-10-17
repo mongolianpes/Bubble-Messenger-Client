@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"strings"
@@ -23,23 +24,13 @@ func generateTestRandValidStr() string {
 
 func TestRegAndAuth(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		login := generateTestRandValidStr()
-		name := generateTestRandValidStr()
-		password := generateTestRandValidStr()
-		device := generateTestRandValidStr()
-
-		result := Reg(login, name, password, device)
-		require.NotContains(t, result, "$")
+		_, _, _, _, err := RegTestUser()
+		require.NoError(t, err)
 	})
 
 	t.Run("duplicate login", func(t *testing.T) {
-		login := generateTestRandValidStr()
-		name := generateTestRandValidStr()
-		password := generateTestRandValidStr()
-		device := generateTestRandValidStr()
-
-		reg1 := Reg(login, name, password, device)
-		require.NotContains(t, reg1, "$")
+		login, name, password, device, err := RegTestUser()
+		require.NoError(t, err)
 
 		reg2 := Reg(login, name, password, device)
 		require.Contains(t, reg2, "$")
@@ -48,13 +39,8 @@ func TestRegAndAuth(t *testing.T) {
 
 func TestAuth(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		login := generateTestRandValidStr()
-		name := generateTestRandValidStr()
-		password := generateTestRandValidStr()
-		device := generateTestRandValidStr()
-
-		reg := Reg(login, name, password, device)
-		require.NotContains(t, reg, "$")
+		login, name, password, device, err := RegTestUser()
+		require.NoError(t, err)
 
 		auth := Auth(login, password, device)
 		require.NotContains(t, auth, "$")
@@ -72,4 +58,18 @@ func TestAuth(t *testing.T) {
 		auth := Auth(login, password, device)
 		require.Contains(t, auth, "$")
 	})
+}
+
+func RegTestUser() (login, name, password, device string, err error) {
+	login = generateTestRandValidStr()
+	name = generateTestRandValidStr()
+	password = generateTestRandValidStr()
+	device = generateTestRandValidStr()
+
+	result := Reg(login, name, password, device)
+	if strings.Contains(result, "$") {
+		err = errors.New(result)
+	}
+
+	return
 }
