@@ -3,6 +3,7 @@ package files
 import (
 	"client/auth"
 	"errors"
+	"fmt"
 	"math/rand"
 	"strings"
 	"time"
@@ -20,6 +21,8 @@ func generateTestRandValidStr() string {
 }
 
 func RegAndAuthTestUser() (login, name, password, device, key string, err error) {
+	fmt.Println("В случае возникновение неудачного теста: возможно сгенерированные рандомный логин уже существует")
+	fmt.Println("Стоит очистить БД и провести тест еще несколько раз")
 	login = generateTestRandValidStr()
 	name = generateTestRandValidStr()
 	password = generateTestRandValidStr()
