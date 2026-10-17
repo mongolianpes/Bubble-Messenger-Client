@@ -62,7 +62,7 @@ func SearchUser(login, password, deviceInfo, loginForSearch, key string, numSeae
 	case http.StatusOK:
 		body, err = crypto.StringDecryptByte(body, key)
 		if err != nil {
-			fmt.Println(err)
+			return "$ " + err.Error()
 		}
 
 		var findUsers []FindUser
@@ -90,7 +90,6 @@ func SearchUser(login, password, deviceInfo, loginForSearch, key string, numSeae
 
 		return out
 	case http.StatusInternalServerError:
-		fmt.Println(string(body))
 		decryptedResp, err := crypto.StringDecrypt(string(body), key)
 		if err != nil {
 			return "$ ошибка чтения ответа" + err.Error()

@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/hex"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -27,7 +26,7 @@ func main() {
 	authPes := Auth("Pes", "1234567890", device)
 	fmt.Println(authPes)
 	keyMongol := strings.Split(authMongol, "\n")[0]
-	keyPes := strings.Split(authPes, "\n")[0]
+	// keyPes := strings.Split(authPes, "\n")[0]
 
 	// ТЕСТ ФАЙЛОВ: аватарки
 	// avatarBytes, err := os.ReadFile("F:/GolangProjects/BubleMessenger/client/192.webp")
@@ -42,17 +41,17 @@ func main() {
 	// fmt.Println(os.WriteFile("pesAvatar.webp", pesAvatar, 0644))
 
 	// ТЕСТ ФАЙЛОВ: файлы
-	fmt.Println("del messages (mongol): ", DelMessages("Pes", "1234567890", device, keyPes))
-	file, err := os.ReadFile("F:/GolangProjects/BubleMessenger/client/192.webp")
-	if err != nil {
-		fmt.Println(err)
-	}
-	fmt.Println("send file", SendFile("Pes", "1234567890", "Mongol", "newfile.webp", device, keyPes, file))
-	checkMessages := CheckMessages("Mongol", "1234567890", device, keyMongol)
-	checkMessageSplit := strings.Split(checkMessages, "\\\\")
-	messageSplit := strings.Split(checkMessageSplit[1], "\\")
-	getFile := GetFile("Mongol", "1234567890", messageSplit[2], device, keyMongol)
-	fmt.Println(os.WriteFile("get.webp", getFile, 0600))
+	// fmt.Println("del messages (mongol): ", DelMessages("Pes", "1234567890", device, keyPes))
+	// file, err := os.ReadFile("F:/GolangProjects/BubleMessenger/client/192.webp")
+	// if err != nil {
+	// 	fmt.Println(err)
+	// }
+	// fmt.Println("send file", SendFile("Pes", "1234567890", "Mongol", "newfile.webp", device, keyPes, file))
+	// checkMessages := CheckMessages("Mongol", "1234567890", device, keyMongol)
+	// checkMessageSplit := strings.Split(checkMessages, "\\\\")
+	// messageSplit := strings.Split(checkMessageSplit[1], "\\")
+	// getFile := GetFile("Mongol", "1234567890", messageSplit[2], device, keyMongol)
+	// fmt.Println(os.WriteFile("get.webp", getFile, 0600))
 
 	// ТЕСТ сообщений
 	// fmt.Println("send message: ", SendMessage("Pes", "1234567890", "Mongol", device, "pon", keyPes))
@@ -66,9 +65,9 @@ func main() {
 	// testECDHAlgorithm()
 
 	// ТЕСТ поиска
-	// fmt.Println("search: ", SearchUser("Mongol", "1234567890", device, "Pes", keyMongol, 1))
-	// fmt.Println("search: ", SearchUser("Mongol", "1234567890", device, "@Mongoliseker", keyMongol, 1))
-	// fmt.Println("search: ", SearchUser("Mongol", "1234567890", device, "Mongol", keyMongol, 1))
+	fmt.Println("search: ", SearchUser("Mongol", "1234567890", device, "Pes", keyMongol, 1))
+	fmt.Println("search: ", SearchUser("Mongol", "1234567890", device, "@Mongoliseker", keyMongol, 1))
+	fmt.Println("search: ", SearchUser("Mongol", "1234567890", device, "Mongol", keyMongol, 1))
 
 	// ТЕСТ аудио диалога
 	// fmt.Println("del messages (pes): ", DelMessages("Pes", "1234567890", device, keyPes))
