@@ -90,7 +90,6 @@ func CheckMessages(login, password, deviceInfo, key string) string {
 		var result strings.Builder
 
 		for li, line := range lines {
-			fmt.Println(line)
 			line = strings.TrimSpace(line)
 			if line == "" {
 				continue
