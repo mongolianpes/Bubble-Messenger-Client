@@ -231,12 +231,12 @@ func GetAvatar(login, password, loginForSearch, deviceInfo, key string) []byte {
 
 //export InitAudioDialog
 func InitAudioDialog(senderLogin, senderPassword, receiverLogin, deviceInfo, key string) string {
-	return messages.InitAudioDialog(senderLogin, senderPassword, receiverLogin, deviceInfo, key)
+	return audiodialog.InitAudioDialog(senderLogin, senderPassword, receiverLogin, deviceInfo, key)
 }
 
 //export StopAudioDialog
 func StopAudioDialog(senderLogin, senderPassword, receiverLogin, dialogUUID, deviceInfo, key string) string {
-	return messages.StopAudioDialog(senderLogin, senderPassword, receiverLogin, dialogUUID, deviceInfo, key)
+	return audiodialog.StopAudioDialog(senderLogin, senderPassword, receiverLogin, dialogUUID, deviceInfo, key)
 }
 
 func AudioDialog(UUID, UserID, key string, message []byte) string {

@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"client/config"
 	"client/crypto"
+	"client/messages"
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -87,4 +89,12 @@ func AudioDialog(UUID, UserID, key string, message []byte) string {
 	}
 
 	return result
+}
+
+func InitAudioDialog(senderLogin, senderPassword, receiverLogin, deviceInfo, key string) string {
+	return messages.SendMessageToServer(senderLogin, senderPassword, receiverLogin, deviceInfo, "a\\", key)
+}
+
+func StopAudioDialog(senderLogin, senderPassword, receiverLogin, dialogUUID, deviceInfo, key string) string {
+	return messages.SendMessageToServer(senderLogin, senderPassword, receiverLogin, deviceInfo, fmt.Sprintf("as\\%v", dialogUUID), key)
 }

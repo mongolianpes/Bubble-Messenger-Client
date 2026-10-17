@@ -29,7 +29,7 @@ type Message struct {
 }
 
 func SendMessage(senderLogin, senderPassword, receiverLogin, deviceInfo, message, key string) string {
-	resp := sendMessageToServer(senderLogin, senderPassword, receiverLogin, deviceInfo, message, key)
+	resp := SendMessageToServer(senderLogin, senderPassword, receiverLogin, deviceInfo, message, key)
 	return resp
 }
 

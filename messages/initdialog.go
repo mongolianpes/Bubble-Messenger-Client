@@ -37,7 +37,7 @@ func InitDialog(senderLogin, senderPassword, receiverLogin, deviceInfo, key stri
 		return "Произошла ошибка при генерации ключей"
 	}
 
-	resp := sendMessageToServer(senderLogin, senderPassword, receiverLogin, deviceInfo, designationOfInitDialog+"\\"+pubKeyBase64, key)
+	resp := SendMessageToServer(senderLogin, senderPassword, receiverLogin, deviceInfo, designationOfInitDialog+"\\"+pubKeyBase64, key)
 	if resp == "Сообщение отправлено" {
 		return privKeyBase64
 	}
@@ -78,7 +78,7 @@ func answerKeyGeneration(user1PubBase64 string) (string, string) {
 func AnswerInitDialog(senderLogin, senderPassword, receiverLogin, deviceInfo, pubKeyBase64, key string) string {
 	pubKeyBase64ForSend, sharedSecret := answerKeyGeneration(pubKeyBase64)
 
-	resp := sendMessageToServer(senderLogin, senderPassword, receiverLogin, deviceInfo, designationOfAnswerDialog+"\\"+pubKeyBase64ForSend, key)
+	resp := SendMessageToServer(senderLogin, senderPassword, receiverLogin, deviceInfo, designationOfAnswerDialog+"\\"+pubKeyBase64ForSend, key)
 	if resp == "Сообщение отправлено" {
 		return sharedSecret + "\\" + crypto.HashLogin(receiverLogin, sharedSecret)
 	}

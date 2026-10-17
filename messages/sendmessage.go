@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-func sendMessageToServer(senderLogin, senderPassword, receiverLogin, deviceInfo, message, key string) string {
+func SendMessageToServer(senderLogin, senderPassword, receiverLogin, deviceInfo, message, key string) string {
 	client := &http.Client{
 		Timeout: 10 * time.Second,
 	}
