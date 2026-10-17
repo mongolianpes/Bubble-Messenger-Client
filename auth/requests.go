@@ -1,8 +1,7 @@
 package auth
 
 import (
-	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -50,7 +49,7 @@ func regRequest(login, name, password, key, hashedDeviceInfo, deviceInfo string)
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "Не удалось прочитать ответ от сервера"
 	}
@@ -59,21 +58,9 @@ func regRequest(login, name, password, key, hashedDeviceInfo, deviceInfo string)
 	case http.StatusOK:
 		return ""
 	case http.StatusBadRequest:
-		if len(string(body)) > 20 {
-			decryptedResp, err := crypto.StringDecrypt(string(body), key)
-			if err != nil {
-				return "$ попробуйте зарегистрироваться заново"
-			}
-			return "$ " + decryptedResp
-		}
 		return "$ " + string(body)
-		// return "Проверьте правильность ввода данных"
 	case http.StatusInternalServerError:
-		decryptedResp, err := crypto.StringDecrypt(string(body), key)
-		if err != nil {
-			return "$ попробуйте зарегистрироваться заново"
-		}
-		return "$ " + decryptedResp
+		return "$ " + string(body)
 	default:
 		decryptedResp, err := crypto.StringDecrypt(string(body), key)
 		if err != nil {
@@ -116,7 +103,7 @@ func authRequest(login, password, key, hashedDeviceInfo, deviceInfo string) stri
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "Не удается обработать ответ сервера"
 	}
@@ -129,25 +116,9 @@ func authRequest(login, password, key, hashedDeviceInfo, deviceInfo string) stri
 		}
 		return decryptedResp
 	case http.StatusBadRequest:
-		if string(body) == "Did not receive all server data" || string(body) == "This request is not expected for you" {
-			return "$" + string(body)
-		}
-		decryptedResp, err := crypto.StringDecrypt(string(body), key)
-		if err != nil {
-			return "$ попробуйте авторизоваться заново"
-		}
-		return "$ " + decryptedResp
-	// 	return "Проверьте правильность ввода данных"
-	// case http.StatusForbidden:
-	// 	return "Не правильный логин или пароль"
+		return "$ " + string(body)
 	case http.StatusInternalServerError:
-		fmt.Println(string(body))
-		decryptedResp, err := crypto.StringDecrypt(string(body), key)
-		if err != nil {
-			return "$ попробуйте авторизоваться заново"
-		}
-		return "$ " + decryptedResp
-	// 	return "Внутреняя ошибка сервера"
+		return "$ " + string(body)
 	default:
 		return ""
 	}
