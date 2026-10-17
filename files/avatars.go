@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -38,7 +37,6 @@ func SetAvatar(login, password, deviceInfo, key string, avatar []byte) string {
 		return "$ ошибка зашифровки 1"
 	}
 	hashedDeviceInfo := crypto.HashDeviceInfo(deviceInfo, login)
-	fmt.Println("hashedDeviceInfo ", hashedDeviceInfo)
 
 	payload := Avatar{
 		Avatar:               avatarEncrypted,
@@ -77,7 +75,7 @@ func SetAvatar(login, password, deviceInfo, key string, avatar []byte) string {
 	case http.StatusOK:
 		return "Аватар усшпено загружен"
 	case http.StatusBadRequest:
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return "Не удается обработать ответ сервера"
 		}
