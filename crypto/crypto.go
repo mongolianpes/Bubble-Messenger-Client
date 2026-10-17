@@ -5,11 +5,17 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 )
 
 func StringEncrypt(stringToEncrypt []byte, keyString string) (encryptedString string, errEncrypt error) {
+	defer func() {
+		if r := recover(); r != nil {
+			errEncrypt = errors.New("Unknow crypt error")
+		}
+	}()
 	//Since the key is in string, we need to convert decode it to bytes
 	key, _ := hex.DecodeString(keyString)
 	// plaintext := []byte(stringToEncrypt)
@@ -40,6 +46,11 @@ func StringEncrypt(stringToEncrypt []byte, keyString string) (encryptedString st
 }
 
 func StringEncryptByte(stringToEncrypt []byte, keyString string) (encryptedString []byte, errEncrypt error) {
+	defer func() {
+		if r := recover(); r != nil {
+			errEncrypt = errors.New("Unknow crypt error")
+		}
+	}()
 	//Since the key is in string, we need to convert decode it to bytes
 	key, _ := hex.DecodeString(keyString)
 	// plaintext := []byte(stringToEncrypt)
@@ -70,6 +81,11 @@ func StringEncryptByte(stringToEncrypt []byte, keyString string) (encryptedStrin
 }
 
 func StringDecrypt(encryptedString, keyString string) (decryptedString string, errEncrypt error) {
+	defer func() {
+		if r := recover(); r != nil {
+			errEncrypt = errors.New("Unknow crypt error")
+		}
+	}()
 
 	key, _ := hex.DecodeString(keyString)
 	enc, _ := hex.DecodeString(encryptedString)
@@ -102,6 +118,11 @@ func StringDecrypt(encryptedString, keyString string) (decryptedString string, e
 }
 
 func StringDecryptByte(enc []byte, keyString string) (decryptedString []byte, errEncrypt error) {
+	defer func() {
+		if r := recover(); r != nil {
+			errEncrypt = errors.New("Unknow crypt error")
+		}
+	}()
 	key, _ := hex.DecodeString(keyString)
 
 	//Create a new Cipher Block from the key
