@@ -29,4 +29,20 @@ func TestSendCheckAndDelMessages(t *testing.T) {
 		check2 := CheckMessages(receiverLogin, receiverPassword, receiverDevice, receiverKey)
 		require.Empty(t, check2)
 	})
+
+	t.Run("del not exist messages", func(t *testing.T) {
+		login, _, password, device, key, err := RegAndAuthTestUser()
+		require.NoError(t, err)
+
+		del := DelMessages(login, password, device, key)
+		require.Equal(t, del, "Успешно удалено")
+	})
+
+	t.Run("check not exist messages", func(t *testing.T) {
+		login, _, password, device, key, err := RegAndAuthTestUser()
+		require.NoError(t, err)
+
+		check2 := CheckMessages(login, password, device, key)
+		require.Empty(t, check2)
+	})
 }
