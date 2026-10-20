@@ -42,6 +42,8 @@ func TestAuth(t *testing.T) {
 		login, name, password, device, err := RegTestUser()
 		require.NoError(t, err)
 
+		fmt.Println(login, name, password)
+
 		auth := Auth(login, password, device)
 		require.NotContains(t, auth, "$")
 		authSplitted := strings.Split(auth, "\n")

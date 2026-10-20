@@ -1,25 +1,30 @@
 package auth
 
 import (
+	"bytes"
+	"encoding/json"
 	"io"
 	"net/http"
-	"net/url"
-	"os"
 	"time"
 
 	"client/config"
 	"client/crypto"
 )
 
-func regRequest(login, name, password, key, hashedDeviceInfo, deviceInfo string) string {
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-	}
+type RegRequest struct {
+	Login    string
+	Name     string
+	Password string
+	Device   string
+}
 
-	keyForServer, err := crypto.StringEncrypt([]byte(crypto.GenKey(deviceInfo)), key)
-	if err != nil {
-		return "$ неизвестная ошибка"
-	}
+type AuthRequest struct {
+	Login    string
+	Password string
+	Device   string
+}
+
+func regRequest(login, name, password, key, hashedDeviceInfo, deviceInfo string) string {
 	loginEncypted, err := crypto.StringEncrypt([]byte(login), key)
 	if err != nil {
 		return "$ неизвестная ошибка"
@@ -33,19 +38,30 @@ func regRequest(login, name, password, key, hashedDeviceInfo, deviceInfo string)
 		return "$ неизвестная ошибка"
 	}
 
-	formData := url.Values{}
-	formData.Add("login", loginEncypted)
-	formData.Add("name", nameEncrypted)
-	formData.Add("password", passwordEncrypted)
-	formData.Add("device", hashedDeviceInfo)
-	formData.Add("forserver", keyForServer)
+	requestBody := RegRequest{
+		Login:    loginEncypted,
+		Name:     nameEncrypted,
+		Password: passwordEncrypted,
+		Device:   hashedDeviceInfo,
+	}
 
-	resp, err := client.PostForm(config.ForServerReq+config.MainServicePort+"/reg", formData)
+	requestJSON, err := json.Marshal(requestBody)
 	if err != nil {
-		if os.IsTimeout(err) {
-			return "Сервер не отвечает"
-		}
-		return "Сервер не отвечает по какой то херне"
+		return "$ ошибка создания json"
+	}
+
+	req, err := http.NewRequest("POST", config.ForServerReq+config.MainServicePort+"/reg", bytes.NewBuffer(requestJSON))
+	if err != nil {
+		return "$ ошибка создания запроса"
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "$ ошибка отправки запроса"
 	}
 	defer resp.Body.Close()
 
@@ -71,14 +87,6 @@ func regRequest(login, name, password, key, hashedDeviceInfo, deviceInfo string)
 }
 
 func authRequest(login, password, key, hashedDeviceInfo, deviceInfo string) string {
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-	}
-
-	keyForServer, err := crypto.StringEncrypt([]byte(crypto.GenKey(deviceInfo)), key)
-	if err != nil {
-		return "$ неизвестная ошибка"
-	}
 	loginEncypted, err := crypto.StringEncrypt([]byte(login), key)
 	if err != nil {
 		return "$ неизвестная ошибка"
@@ -88,18 +96,29 @@ func authRequest(login, password, key, hashedDeviceInfo, deviceInfo string) stri
 		return "$ неизвестная ошибка"
 	}
 
-	formData := url.Values{}
-	formData.Add("login", loginEncypted)
-	formData.Add("password", passwordEncrypted)
-	formData.Add("device", hashedDeviceInfo)
-	formData.Add("forserver", keyForServer)
+	requestBody := AuthRequest{
+		Login:    loginEncypted,
+		Password: passwordEncrypted,
+		Device:   hashedDeviceInfo,
+	}
 
-	resp, err := client.PostForm(config.ForServerReq+config.MainServicePort+"/auth", formData)
+	requestJSON, err := json.Marshal(requestBody)
 	if err != nil {
-		if os.IsTimeout(err) {
-			return "Сервер не отвечает"
-		}
-		return "Не удается установить соединение с сервером: " + err.Error()
+		return "$ ошибка создания json"
+	}
+
+	req, err := http.NewRequest("POST", config.ForServerReq+config.MainServicePort+"/auth", bytes.NewBuffer(requestJSON))
+	if err != nil {
+		return "$ ошибка создания запроса"
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "$ ошибка отправки запроса"
 	}
 	defer resp.Body.Close()
 
