@@ -1,20 +1,24 @@
 package messages
 
 import (
+	"bytes"
 	"client/config"
 	"client/crypto"
+	"encoding/json"
 	"io"
 	"net/http"
-	"net/url"
-	"os"
 	"time"
 )
 
-func SendMessageToServer(senderLogin, senderPassword, receiverLogin, deviceInfo, message, key string) string {
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-	}
+type SendMessageRequest struct {
+	SenderLogin    string
+	SenderPassword string
+	ReceiverLogin  string
+	Device         string
+	Message        string
+}
 
+func SendMessageToServer(senderLogin, senderPassword, receiverLogin, deviceInfo, message, key string) string {
 	senderLoginEncrypted, err := crypto.StringEncrypt([]byte(senderLogin), key)
 	if err != nil {
 		return "$ ошибка зашифровки"
@@ -33,23 +37,31 @@ func SendMessageToServer(senderLogin, senderPassword, receiverLogin, deviceInfo,
 	}
 	hashedDeviceInfo := crypto.HashDeviceInfo(deviceInfo, senderLogin)
 
-	formData := url.Values{}
-	formData.Add("senderlogin", senderLoginEncrypted)
-	formData.Add("senderpassword", senderPasswordEncrypted)
-	formData.Add("receiverlogin", receiverLoginEncrypted)
-	formData.Add("device", hashedDeviceInfo)
-	formData.Add("message", messageEncrypted)
-	formData.Add("forserver", crypto.GenKey(deviceInfo))
-	// if !(message[0] == designationOfAnswerDialog[0] || message[0] == designationOfInitDialog[0]) {
-	// 	formData.Add("senderLoginHashed", crypto.HashLogin(senderLogin, dialogKey))
-	// }
+	requestBody := SendMessageRequest{
+		SenderLogin:    senderLoginEncrypted,
+		SenderPassword: senderPasswordEncrypted,
+		ReceiverLogin:  receiverLoginEncrypted,
+		Device:         hashedDeviceInfo,
+		Message:        messageEncrypted,
+	}
 
-	resp, err := client.PostForm(config.ForServerReq+config.MainServicePort+"/sendmessage", formData)
+	requestJSON, err := json.Marshal(requestBody)
 	if err != nil {
-		if os.IsTimeout(err) {
-			return "$ Сервер не отвечает"
-		}
-		return "$ Не удается установить соединение с сервером"
+		return "$ ошибка создания json"
+	}
+
+	req, err := http.NewRequest("POST", config.ForServerReq+config.MainServicePort+"/sendmessage", bytes.NewBuffer(requestJSON))
+	if err != nil {
+		return "$ ошибка создания запроса"
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "$ ошибка отправки запроса"
 	}
 	defer resp.Body.Close()
 

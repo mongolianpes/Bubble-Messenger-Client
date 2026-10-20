@@ -15,7 +15,7 @@ import (
 	"client/crypto"
 )
 
-type Avatar struct {
+type SetAvatarRequest struct {
 	Avatar               []byte `json:"avatar"`
 	Login                string `json:"login"`
 	Password             string `json:"password"`
@@ -38,7 +38,7 @@ func SetAvatar(login, password, deviceInfo, key string, avatar []byte) string {
 	}
 	hashedDeviceInfo := crypto.HashDeviceInfo(deviceInfo, login)
 
-	payload := Avatar{
+	payload := SetAvatarRequest{
 		Avatar:               avatarEncrypted,
 		Login:                loginEcnrypted,
 		Password:             passwordEncrypted,

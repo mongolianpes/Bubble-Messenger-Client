@@ -7,9 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"net/http"
-	"net/url"
 	"os"
 	"time"
 )
@@ -22,6 +20,13 @@ type SendFileRequest struct {
 	Device               string
 	KeyForServerDataBase string
 	File                 []byte
+}
+
+type DelFileRequest struct {
+	Login    string
+	Password string
+	Filename string
+	Device   string
 }
 
 func SendFile(login, password, receiverLogin, fileName, deviceInfo, key string, file []byte) string {
@@ -139,10 +144,6 @@ func GetFile(login, password, fileStoragePath, deviceInfo, key string) []byte {
 }
 
 func DelFile(login, password, fileName, deviceInfo, key string) string {
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-	}
-
 	loginEcnrypted, err := crypto.StringEncrypt([]byte(login), key)
 	if err != nil {
 		return "$ ошибка зашифровки"
@@ -157,23 +158,34 @@ func DelFile(login, password, fileName, deviceInfo, key string) string {
 	}
 	hashedDeviceInfo := crypto.HashDeviceInfo(deviceInfo, login)
 
-	formData := url.Values{}
-	formData.Add("login", loginEcnrypted)
-	formData.Add("password", passwordEncrypted)
-	formData.Add("filename", fileNameEncrypted)
-	formData.Add("device", hashedDeviceInfo)
-	formData.Add("forserver", crypto.GenKey(deviceInfo))
+	requestBody := DelFileRequest{
+		Login:    loginEcnrypted,
+		Password: passwordEncrypted,
+		Filename: fileNameEncrypted,
+		Device:   hashedDeviceInfo,
+	}
 
-	resp, err := client.PostForm(config.ForServerReq+config.MediumSizeDataServicePort+"/delfile", formData)
+	requestJSON, err := json.Marshal(requestBody)
 	if err != nil {
-		if os.IsTimeout(err) {
-			return "$ Сервер не отвечает"
-		}
-		return "$ Не удается установить соединение с сервером"
+		return "$ ошибка создания json"
+	}
+
+	req, err := http.NewRequest("POST", config.ForServerReq+config.MediumSizeDataServicePort+"/delfile", bytes.NewBuffer(requestJSON))
+	if err != nil {
+		return "$ ошибка создания запроса"
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "$ ошибка отправки запроса"
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "$ Не удается обработать ответ сервера"
 	}

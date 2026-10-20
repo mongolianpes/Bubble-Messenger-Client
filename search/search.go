@@ -1,16 +1,22 @@
 package search
 
 import (
+	"bytes"
 	"client/config"
 	"client/crypto"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
-	"os"
 	"time"
 )
+
+type SearchUserRequest struct {
+	Login          string
+	Password       string
+	Device         string
+	LoginForSearch string
+}
 
 type FindUser struct {
 	Login string `json:"login"`
@@ -18,10 +24,6 @@ type FindUser struct {
 }
 
 func SearchUser(login, password, deviceInfo, loginForSearch, key string, numSeaerchRequest int) string {
-	client := http.Client{
-		Timeout: 10 * time.Second,
-	}
-
 	hashedDeviceInfo := crypto.HashDeviceInfo(deviceInfo, login)
 
 	loginForSearchEncrypt, err := crypto.StringEncrypt([]byte(loginForSearch), key)
@@ -37,19 +39,31 @@ func SearchUser(login, password, deviceInfo, loginForSearch, key string, numSeae
 		return "$ Необходимо заново авторизоваться"
 	}
 
-	formData := url.Values{}
-	formData.Add("login", loginEncrypt)
-	formData.Add("password", passwordEncrypt)
-	formData.Add("device", hashedDeviceInfo)
-	formData.Add("loginforsearch", loginForSearchEncrypt)
-	formData.Add("forserver", crypto.GenKey(deviceInfo))
+	payload := SearchUserRequest{
+		Login:          loginEncrypt,
+		Password:       passwordEncrypt,
+		Device:         hashedDeviceInfo,
+		LoginForSearch: loginForSearchEncrypt,
+	}
 
-	resp, err := client.PostForm(config.ForServerReq+config.MainServicePort+"/searchuser", formData)
+	requestJSON, err := json.Marshal(payload)
 	if err != nil {
-		if os.IsTimeout(err) {
-			return "$ Сервер не отвечает по причине долгого ответа"
-		}
-		return "$ Сервер не отвечает по какому то дерьму"
+		return "$ Ошибка при маршалинге JSON:" + err.Error()
+	}
+
+	req, err := http.NewRequest(http.MethodPost, config.ForServerReq+config.MainServicePort+"/searchuser", bytes.NewReader(requestJSON))
+	if err != nil {
+		return "$ Ошибка при создании запроса:" + err.Error()
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "$ Ошибка при выполнении запроса:" + err.Error()
 	}
 	defer resp.Body.Close()
 
