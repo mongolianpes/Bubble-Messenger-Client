@@ -25,6 +25,7 @@ func TestSendAndGetFile(t *testing.T) {
 		require.NotContains(t, sendFile, "$")
 
 		checkMessages := messages.CheckMessages(receiverLogin, receiverPassword, receiverDevice, receiverKey)
+		require.NotContains(t, checkMessages, "$")
 		checkMessagesSplitted := strings.Split(checkMessages, "\\\\")
 		textMessageSplitted := strings.Split(checkMessagesSplitted[1], "\\")
 		require.Equal(t, textMessageSplitted[0], "p")
