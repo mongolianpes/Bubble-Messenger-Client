@@ -1,20 +1,15 @@
 package search
 
 import (
-	"bytes"
 	"client/config"
 	"client/crypto"
+	"client/request"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
-	"time"
 )
 
 type SearchUserRequest struct {
-	Login          string
-	Password       string
-	Device         string
 	LoginForSearch string
 }
 
@@ -24,46 +19,18 @@ type FindUser struct {
 }
 
 func SearchUser(login, password, deviceInfo, loginForSearch, key string, numSeaerchRequest int) string {
-	hashedDeviceInfo := crypto.HashDeviceInfo(deviceInfo, login)
-
-	loginForSearchEncrypt, err := crypto.StringEncrypt([]byte(loginForSearch), key)
-	if err != nil {
-		return "$ Необходимо заново авторизоваться"
-	}
-	loginEncrypt, err := crypto.StringEncrypt([]byte(login), key)
-	if err != nil {
-		return "$ Необходимо заново авторизоваться"
-	}
-	passwordEncrypt, err := crypto.StringEncrypt([]byte(password), key)
-	if err != nil {
-		return "$ Необходимо заново авторизоваться"
+	req := SearchUserRequest{
+		LoginForSearch: loginForSearch,
 	}
 
-	payload := SearchUserRequest{
-		Login:          loginEncrypt,
-		Password:       passwordEncrypt,
-		Device:         hashedDeviceInfo,
-		LoginForSearch: loginForSearchEncrypt,
-	}
-
-	requestJSON, err := json.Marshal(payload)
+	reqBody, err := json.Marshal(req)
 	if err != nil {
-		return "$ Ошибка при маршалинге JSON:" + err.Error()
+		return "$ не удалось преобразовать запрос в JSON" + err.Error()
 	}
 
-	req, err := http.NewRequest(http.MethodPost, config.ForServerReq+config.MainServicePort+"/searchuser", bytes.NewReader(requestJSON))
+	resp, err := request.SendRequest(login, password, deviceInfo, key, config.ForServerReq+config.MainServicePort+"/", "searchuser", reqBody)
 	if err != nil {
-		return "$ Ошибка при создании запроса:" + err.Error()
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return "$ Ошибка при выполнении запроса:" + err.Error()
+		return "$ не удалось отправить реквест " + err.Error()
 	}
 	defer resp.Body.Close()
 
@@ -74,20 +41,19 @@ func SearchUser(login, password, deviceInfo, loginForSearch, key string, numSeae
 
 	switch resp.StatusCode {
 	case http.StatusOK:
-		body, err = crypto.StringDecryptByte(body, key)
+		body, err := crypto.StringDecryptByte(body, key)
 		if err != nil {
-			return "$ " + err.Error()
+			return "$decrypt error " + err.Error()
 		}
 
 		var findUsers []FindUser
 		var out string
 		if err := json.Unmarshal(body, &findUsers); err != nil {
-			return "$ ошибка обработки ответа, попробуй еще раз " + err.Error()
+			return "$ошибка обработки ответа, попробуй еще раз " + err.Error()
 		}
 
 		// out += strconv.Itoa(resp.NumSeaerchRequest)
 
-		fmt.Println(findUsers)
 		for findUser := range findUsers {
 			if findUsers[findUser].Login == login {
 				continue

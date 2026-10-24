@@ -12,12 +12,15 @@ import (
 
 	"client/config"
 	"client/crypto"
+	"client/request"
 )
 
 type CheckMessagesRequest struct {
-	Login    string
-	Password string
-	Device   string
+	Login string
+}
+
+type DelMessagesRequest struct {
+	Login string
 }
 
 type RequestCheckMessages struct {
@@ -37,39 +40,18 @@ func SendMessage(senderLogin, senderPassword, receiverLogin, deviceInfo, message
 }
 
 func CheckMessages(login, password, deviceInfo, key string) string {
-	loginEcnrypted, err := crypto.StringEncrypt([]byte(login), key)
-	if err != nil {
-		return "$ ошибка зашифровки"
-	}
-	passwordEncrypted, err := crypto.StringEncrypt([]byte(password), key)
-	if err != nil {
-		return "$ ошибка зашифровки"
-	}
-	hashedDeviceInfo := crypto.HashDeviceInfo(deviceInfo, login)
-
-	requestBody := CheckMessagesRequest{
-		Login:    loginEcnrypted,
-		Password: passwordEncrypted,
-		Device:   hashedDeviceInfo,
+	req := CheckMessagesRequest{
+		Login: login,
 	}
 
-	requestJSON, err := json.Marshal(requestBody)
+	reqBody, err := json.Marshal(req)
 	if err != nil {
-		return "$ ошибка создания json"
+		return "$ Не удалось преобразовать запрос в JSON" + err.Error()
 	}
 
-	req, err := http.NewRequest("POST", config.ForServerReq+config.MainServicePort+"/checkmessage", bytes.NewBuffer(requestJSON))
+	resp, err := request.SendRequest(login, password, deviceInfo, key, config.ForServerReq+config.MainServicePort+"/", "checkmessage", reqBody)
 	if err != nil {
-		return "$ ошибка создания запроса"
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "$ ошибка отправки запроса"
+		return "$ не удалось отправить реквест " + err.Error()
 	}
 	defer resp.Body.Close()
 
@@ -145,39 +127,18 @@ func CheckMessages(login, password, deviceInfo, key string) string {
 }
 
 func DelMessages(login, password, deviceInfo, key string) string {
-	loginEcnrypted, err := crypto.StringEncrypt([]byte(login), key)
-	if err != nil {
-		return "$ ошибка зашифровки"
-	}
-	passwordEncrypted, err := crypto.StringEncrypt([]byte(password), key)
-	if err != nil {
-		return "$ ошибка зашифровки"
-	}
-	hashedDeviceInfo := crypto.HashDeviceInfo(deviceInfo, login)
-
-	requestBody := CheckMessagesRequest{
-		Login:    loginEcnrypted,
-		Password: passwordEncrypted,
-		Device:   hashedDeviceInfo,
+	req := DelMessagesRequest{
+		Login: login,
 	}
 
-	requestJSON, err := json.Marshal(requestBody)
+	reqBody, err := json.Marshal(req)
 	if err != nil {
-		return "$ ошибка создания json"
+		return "$ не удалось преобразовать запрос в JSON" + err.Error()
 	}
 
-	req, err := http.NewRequest("POST", config.ForServerReq+config.MainServicePort+"/delmessages", bytes.NewBuffer(requestJSON))
+	resp, err := request.SendRequest(login, password, deviceInfo, key, config.ForServerReq+config.MainServicePort+"/", "delmessages", reqBody)
 	if err != nil {
-		return "$ ошибка создания запроса"
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "$ ошибка отправки запроса"
+		return "$ не удалось отправить реквест " + err.Error()
 	}
 	defer resp.Body.Close()
 

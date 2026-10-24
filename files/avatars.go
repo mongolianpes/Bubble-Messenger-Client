@@ -1,75 +1,47 @@
 package files
 
 import (
-	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
-	"os"
 	"time"
 
 	"client/config"
 	"client/crypto"
+	"client/request"
 )
 
 type SetAvatarRequest struct {
-	Avatar               []byte `json:"avatar"`
-	Login                string `json:"login"`
-	Password             string `json:"password"`
-	DeviceInfo           string `json:"deviceinfo"`
-	KeyForServerDataBase string `json:"forserver"`
+	Avatar []byte `json:"avatar"`
+	Login  string `json:"login"`
+}
+
+type GetAvatarRequest struct {
+	LoginForSearch string
 }
 
 func SetAvatar(login, password, deviceInfo, key string, avatar []byte) string {
-	loginEcnrypted, err := crypto.StringEncrypt([]byte(login), key)
-	if err != nil {
-		return "$ ошибка зашифровки"
-	}
-	passwordEncrypted, err := crypto.StringEncrypt([]byte(password), key)
-	if err != nil {
-		return "$ ошибка зашифровки"
-	}
-	avatarEncrypted, err := crypto.StringEncryptByte(avatar, key)
-	if err != nil {
-		return "$ ошибка зашифровки 1"
-	}
-	hashedDeviceInfo := crypto.HashDeviceInfo(deviceInfo, login)
-
-	payload := SetAvatarRequest{
-		Avatar:               avatarEncrypted,
-		Login:                loginEcnrypted,
-		Password:             passwordEncrypted,
-		DeviceInfo:           hashedDeviceInfo,
-		KeyForServerDataBase: crypto.GenKey(deviceInfo),
+	req := SetAvatarRequest{
+		Avatar: avatar,
+		Login:  login,
 	}
 
-	body, err := json.Marshal(payload)
+	reqBody, err := json.Marshal(req)
 	if err != nil {
-		return "$ Ошибка при маршалинге JSON:" + err.Error()
+		return "$ не удалось преобразовать запрос в JSON" + err.Error()
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, config.ForServerReq+config.MediumSizeDataServicePort+"/setavatar", bytes.NewReader(body))
+	resp, err := request.SendRequest(login, password, deviceInfo, key, config.ForServerReq+config.MediumSizeDataServicePort+"/", "setavatar", reqBody)
 	if err != nil {
-		return "$ Ошибка при создании запроса:" + err.Error()
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			return "$ Сервер не ответил в течение 10 секунд. Завершение программы."
-		}
-		return "$ Ошибка при выполнении запроса:" + err.Error()
+		return "$ не удалось отправить реквест " + err.Error()
 	}
 	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "$ Не удалось прочитать ответ от сервера"
+	}
 
 	switch resp.StatusCode {
 	case http.StatusOK:
@@ -92,48 +64,27 @@ func SetAvatar(login, password, deviceInfo, key string, avatar []byte) string {
 }
 
 func GetAvatar(login, password, loginForSearch, deviceInfo, key string) []byte {
-	client := &http.Client{
-		Timeout: 10 * time.Second,
+	req := GetAvatarRequest{
+		LoginForSearch: loginForSearch,
 	}
 
-	loginForSearchEcnrypted, err := crypto.StringEncrypt([]byte(loginForSearch), key)
+	reqBody, err := json.Marshal(req)
 	if err != nil {
-		return []byte{}
+		return []byte("$ не удалось преобразовать запрос в JSON" + err.Error())
 	}
-	loginEncrypted, err := crypto.StringEncrypt([]byte(login), key)
+
+	resp, err := request.SendRequest(login, password, deviceInfo, key, config.ForServerReq+config.MediumSizeDataServicePort+"/", "getavatar", reqBody)
 	if err != nil {
-		return []byte{}
+		return []byte("$ не удалось отправить реквест " + err.Error())
 	}
-	passwordEncrypted, err := crypto.StringEncrypt([]byte(password), key)
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return []byte{}
+		return []byte("$ ошибка чтения ответа")
 	}
 
-	hashedDeviceInfo := crypto.HashDeviceInfo(deviceInfo, login)
-
-	formData := url.Values{}
-	formData.Add("loginforsearch", loginForSearchEcnrypted)
-	formData.Add("device", hashedDeviceInfo)
-	formData.Add("forserver", crypto.GenKey(deviceInfo))
-	formData.Add("login", loginEncrypted)
-	formData.Add("password", passwordEncrypted)
-
-	respStoragePath, err := client.PostForm(config.ForServerReq+config.MediumSizeDataServicePort+"/getavatar", formData)
-	if err != nil {
-		fmt.Println(err)
-		if os.IsTimeout(err) {
-			return []byte{}
-		}
-		return []byte{}
-	}
-	defer respStoragePath.Body.Close()
-
-	respBody, err := io.ReadAll(respStoragePath.Body)
-	if err != nil {
-		return nil
-	}
-
-	switch respStoragePath.StatusCode {
+	switch resp.StatusCode {
 	case http.StatusOK:
 		// var encAvatar []byte
 		// if err := json.Unmarshal(respBody, &encAvatar); err != nil {
@@ -148,13 +99,17 @@ func GetAvatar(login, password, loginForSearch, deviceInfo, key string) []byte {
 		// }
 
 		// Расшифровываем полученные байты
-		storagePath, err := crypto.StringDecrypt(string(respBody), key)
+		storagePath, err := crypto.StringDecrypt(string(body), key)
 		if err != nil {
 			fmt.Println("decrypt avatar:", err)
 			return nil
 		}
 
 		fmt.Println(storagePath)
+
+		client := &http.Client{
+			Timeout: 10 * time.Second,
+		}
 
 		respAvatarBytes, err := client.Get(config.FilesService + "/" + storagePath)
 		if err != nil {

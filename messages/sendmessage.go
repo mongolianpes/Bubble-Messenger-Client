@@ -1,67 +1,35 @@
 package messages
 
 import (
-	"bytes"
 	"client/config"
 	"client/crypto"
+	"client/request"
 	"encoding/json"
 	"io"
 	"net/http"
-	"time"
 )
 
 type SendMessageRequest struct {
-	SenderLogin    string
-	SenderPassword string
-	ReceiverLogin  string
-	Device         string
-	Message        string
+	SenderLogin   string
+	ReceiverLogin string
+	Message       string
 }
 
 func SendMessageToServer(senderLogin, senderPassword, receiverLogin, deviceInfo, message, key string) string {
-	senderLoginEncrypted, err := crypto.StringEncrypt([]byte(senderLogin), key)
-	if err != nil {
-		return "$ ошибка зашифровки"
-	}
-	receiverLoginEncrypted, err := crypto.StringEncrypt([]byte(receiverLogin), key)
-	if err != nil {
-		return "$ ошибка зашифровки"
-	}
-	messageEncrypted, err := crypto.StringEncrypt([]byte(message), key)
-	if err != nil {
-		return "$ ошибка зашифровки"
-	}
-	senderPasswordEncrypted, err := crypto.StringEncrypt([]byte(senderPassword), key)
-	if err != nil {
-		return "$ ошибка зашифровки"
-	}
-	hashedDeviceInfo := crypto.HashDeviceInfo(deviceInfo, senderLogin)
-
-	requestBody := SendMessageRequest{
-		SenderLogin:    senderLoginEncrypted,
-		SenderPassword: senderPasswordEncrypted,
-		ReceiverLogin:  receiverLoginEncrypted,
-		Device:         hashedDeviceInfo,
-		Message:        messageEncrypted,
+	req := SendMessageRequest{
+		SenderLogin:   senderLogin,
+		ReceiverLogin: receiverLogin,
+		Message:       message,
 	}
 
-	requestJSON, err := json.Marshal(requestBody)
+	reqBody, err := json.Marshal(req)
 	if err != nil {
-		return "$ ошибка создания json"
+		return "$ не удалось преобразовать запрос в JSON" + err.Error()
 	}
 
-	req, err := http.NewRequest("POST", config.ForServerReq+config.MainServicePort+"/sendmessage", bytes.NewBuffer(requestJSON))
+	resp, err := request.SendRequest(senderLogin, senderPassword, deviceInfo, key, config.ForServerReq+config.MainServicePort+"/", "sendmessage", reqBody)
 	if err != nil {
-		return "$ ошибка создания запроса"
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "$ ошибка отправки запроса"
+		return "$ не удалось отправить реквест " + err.Error()
 	}
 	defer resp.Body.Close()
 

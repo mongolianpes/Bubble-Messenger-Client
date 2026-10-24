@@ -1,10 +1,9 @@
 package files
 
 import (
-	"bytes"
 	"client/config"
 	"client/crypto"
-	"context"
+	"client/request"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -13,79 +12,32 @@ import (
 )
 
 type SendFileRequest struct {
-	Sender               string
-	Receiver             string
-	SenderPassword       string
-	FileName             string
-	Device               string
-	KeyForServerDataBase string
-	File                 []byte
+	Sender   string
+	Receiver string
+	FileName string
+	File     []byte
 }
 
 type DelFileRequest struct {
-	Login    string
-	Password string
 	Filename string
-	Device   string
 }
 
 func SendFile(login, password, receiverLogin, fileName, deviceInfo, key string, file []byte) string {
-	timeout := 10 * time.Second
-
-	loginEcnrypted, err := crypto.StringEncrypt([]byte(login), key)
-	if err != nil {
-		return "$ ошибка зашифровки данных"
-	}
-	passwordEcnrypted, err := crypto.StringEncrypt([]byte(password), key)
-	if err != nil {
-		return "$ ошибка зашифровки данных"
-	}
-	receivedLoginEcnrypted, err := crypto.StringEncrypt([]byte(receiverLogin), key)
-	if err != nil {
-		return "$ ошибка зашифровки данных"
-	}
-	fileNameEcnrypted, err := crypto.StringEncrypt([]byte(fileName), key)
-	if err != nil {
-		return "$ ошибка зашифровки данных"
-	}
-	fileEcnrypted, err := crypto.StringEncryptByte(file, key)
-	if err != nil {
-		return "$ ошибка зашифровки данных"
-	}
-	hashedDeviceInfo := crypto.HashDeviceInfo(deviceInfo, login)
-
-	requestBody := SendFileRequest{
-		Sender:               loginEcnrypted,
-		Receiver:             receivedLoginEcnrypted,
-		SenderPassword:       passwordEcnrypted,
-		FileName:             fileNameEcnrypted,
-		Device:               hashedDeviceInfo,
-		KeyForServerDataBase: crypto.GenKey(deviceInfo),
-		File:                 fileEcnrypted,
+	req := SendFileRequest{
+		Sender:   login,
+		Receiver: receiverLogin,
+		FileName: fileName,
+		File:     file,
 	}
 
-	requestJSON, err := json.Marshal(requestBody)
+	reqBody, err := json.Marshal(req)
 	if err != nil {
-		return "$ ошибка создания json"
+		return "$ не удалось преобразовать запрос в JSON" + err.Error()
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, "POST", config.ForServerReq+config.MediumSizeDataServicePort+"/sendfile", bytes.NewBuffer(requestJSON))
+	resp, err := request.SendRequest(login, password, deviceInfo, key, config.ForServerReq+config.MediumSizeDataServicePort+"/", "sendfile", reqBody)
 	if err != nil {
-		return "$ ошибка создания запроса"
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			return "$ сервер не отвечает"
-		} else {
-			return "$ ошибка отправки запроса"
-		}
+		return "$ не удалось отправить реквест " + err.Error()
 	}
 	defer resp.Body.Close()
 
@@ -144,44 +96,18 @@ func GetFile(login, password, fileStoragePath, deviceInfo, key string) []byte {
 }
 
 func DelFile(login, password, fileName, deviceInfo, key string) string {
-	loginEcnrypted, err := crypto.StringEncrypt([]byte(login), key)
-	if err != nil {
-		return "$ ошибка зашифровки"
-	}
-	passwordEncrypted, err := crypto.StringEncrypt([]byte(password), key)
-	if err != nil {
-		return "$ ошибка зашифровки"
-	}
-	fileNameEncrypted, err := crypto.StringEncrypt([]byte(fileName), key)
-	if err != nil {
-		return "$ ошибка зашифровки"
-	}
-	hashedDeviceInfo := crypto.HashDeviceInfo(deviceInfo, login)
-
-	requestBody := DelFileRequest{
-		Login:    loginEcnrypted,
-		Password: passwordEncrypted,
-		Filename: fileNameEncrypted,
-		Device:   hashedDeviceInfo,
+	req := DelFileRequest{
+		Filename: fileName,
 	}
 
-	requestJSON, err := json.Marshal(requestBody)
+	reqBody, err := json.Marshal(req)
 	if err != nil {
-		return "$ ошибка создания json"
+		return "$ Не удалось преобразовать запрос в JSON" + err.Error()
 	}
 
-	req, err := http.NewRequest("POST", config.ForServerReq+config.MediumSizeDataServicePort+"/delfile", bytes.NewBuffer(requestJSON))
+	resp, err := request.SendRequest(login, password, deviceInfo, key, config.ForServerReq+config.MediumSizeDataServicePort+"/", "delfile", reqBody)
 	if err != nil {
-		return "$ ошибка создания запроса"
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "$ ошибка отправки запроса"
+		return "$ не удалось отправить реквест " + err.Error()
 	}
 	defer resp.Body.Close()
 
